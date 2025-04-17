@@ -5,7 +5,7 @@ class chatLogin():
     def __init__(self, root):
         self.root = root
         self.root.title("Secure Chat Login")
-        self.root.geometry("400x250")
+        self.root.geometry("500x300")
         self.root.resizable(False, False)
         # Background color
         self.root.configure(bg="#f0f0f0")
@@ -27,16 +27,16 @@ class chatLogin():
         ).pack(pady=(50, 20))
 
         # Password entry
-        self.password_entry = tk.Entry(
+        self.passwordEntry = tk.Entry(
             self.root, show="*", width=30,
             font=("Arial", 12), bd=2, relief=tk.GROOVE
         )
-        self.password_entry.pack(pady=5)
+        self.passwordEntry.pack(pady=5)
 
         enterButton = tk.Button(
             text = "ENTER",
-            bg = "#4CAF50",
-            fg = "white",
+            bg = "white",
+            fg = "green",
             font=("Arial", 12, "bold"),
             width=6
         )
