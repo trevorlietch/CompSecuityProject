@@ -1,17 +1,15 @@
 import tkinter as tk
-from tkinter import scrolledtext
+from tkinter import simpledialog, scrolledtext
+from AES import aes_encrypt, aes_decrypt  
 
 class chatRoom():
-    def __init__(self, root):
+    def __init__(self, root, password):
         self.root = root
+        self.password = password
         self.root.title("Secure Chat Room")
         self.root.geometry("600x400")
-        # Background color
         self.root.configure(bg="#f0f0f0")
 
-        self.messages = []
-
-        # Chat display
         self.chatDisplay = scrolledtext.ScrolledText(
             self.root,
             state='disabled',
@@ -21,7 +19,6 @@ class chatRoom():
         )
         self.chatDisplay.pack(pady=10)
 
-        # Message input frame
         inputFrame = tk.Frame(self.root)
         inputFrame.pack(pady=5, fill=tk.X, padx=10)
 
@@ -40,21 +37,28 @@ class chatRoom():
         )
         sendButton.pack(side=tk.RIGHT)
 
-    # Takes message from messageEntry and transers it to displayMessage
     def sendMessage(self):
         message = self.messageEntry.get()
         if message:
-            self.displayMessage("You", message)
+            encrypted = aes_encrypt(message, self.password)
+            self.displayMessage("You", encrypted, encrypted=True)
             self.messageEntry.delete(0, tk.END)
 
-    # Displays message to the chatroom
-    def displayMessage(self, sender, message):
+    def displayMessage(self, sender, message, encrypted=False):
         self.chatDisplay.configure(state='normal')
-        self.chatDisplay.insert(tk.END, f"{sender}: {message}\n")
+        if encrypted:
+            decrypted = aes_decrypt(message, self.password)
+            self.chatDisplay.insert(tk.END, f"{sender} (decrypted): {decrypted}\n")
+        else:
+            self.chatDisplay.insert(tk.END, f"{sender}: {message}\n")
         self.chatDisplay.configure(state='disabled')
         self.chatDisplay.see(tk.END)
 
 if __name__ == "__main__":
     root = tk.Tk()
-    chat_ui = chatRoom(root)
-    root.mainloop()
+    password = simpledialog.askstring("Password", "Enter shared password for encryption:", show='*', parent=root)
+    if not password:
+        root.destroy()
+    else:
+        chat_ui = chatRoom(root, password)
+        root.mainloop()
