@@ -13,7 +13,7 @@ PBKDF2_ITERATIONS = 100_000
 MESSAGE_LIMIT = 10
 
 def derive_key_from_secret(secret: str) -> bytes:
-    return SHA256.new(secret.encode()).digest()
+    return SHA256.new(str(secret).encode()).digest()
 
 def aes_encrypt(message: str, key: bytes) -> str:
     iv = os.urandom(BLOCK_SIZE)
@@ -33,6 +33,40 @@ def aes_decrypt(encoded: str, key: bytes) -> str:
     except Exception as e:
         return f"[Decryption failed: {e}]"
     
+def derive_key_from_secret(secret: int) -> bytes:
+    return SHA256.new(str(secret).encode()).digest()
+
+base_key = DSA.generate(2048)
+p = base_key.p
+q = base_key.q
+g = base_key.g
+
+# Generate Alice's key pair with shared params
+alice_x = int.from_bytes(os.urandom(32), 'big') % q
+alice_y = pow(g, alice_x, p)
+
+# Generate Bob's key pair with shared params
+bob_x = int.from_bytes(os.urandom(32), 'big') % q
+bob_y = pow(g, bob_x, p)
+
+# Exchange public keys and compute shared secrets
+alice_shared_secret = pow(bob_y, alice_x, p)
+bob_shared_secret = pow(alice_y, bob_x, p)
+
+# Derive AES key
+alice_aes_key = derive_key_from_secret(alice_shared_secret)
+bob_aes_key = derive_key_from_secret(bob_shared_secret)
+
+# Encrypt and decrypt test
+message = "This is a secret message!"
+print("[Original]:", message)
+
+ciphertext = aes_encrypt(message, alice_aes_key)
+print("[Encrypted by Alice]:", ciphertext)
+
+decrypted = aes_decrypt(ciphertext, bob_aes_key)
+print("[Decrypted by Bob]:", decrypted)
+ 
 class SecureSession:
     def __init__(self, conn, is_initiator):
         self.conn = conn
