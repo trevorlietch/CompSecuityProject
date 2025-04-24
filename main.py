@@ -5,7 +5,7 @@ class ChatLogin():
     def __init__(self, root):
         self.root = root
         self.root.title("Secure Chat Login")
-        self.root.geometry("500x250")
+        self.root.geometry("500x300")
         self.root.resizable(False, False)
         self.root.configure(bg="#f0f0f0")
 
@@ -57,6 +57,23 @@ class ChatLogin():
             font=("Arial", 12), bd=2, relief=tk.GROOVE
         )
         self.passwordEntry.pack(side=tk.LEFT, padx=5)
+
+        # Port frame
+        self.portFrame = tk.Frame(self.root, bg="#f0f0f0")
+        self.portFrame.pack(pady=10)
+
+        tk.Label(
+            self.portFrame,
+            text="Port:",
+            font=("Arial", 12),
+            bg="#f0f0f0"
+        ).pack(side=tk.LEFT)
+
+        self.portEntry = tk.Entry(
+            self.portFrame, width=25,
+            font=("Arial", 12), bd=2, relief=tk.GROOVE
+        )
+        self.portEntry.pack(side=tk.LEFT, padx=5)
 
         # IP frame
         self.ipFrame = tk.Frame(self.root, bg="#f0f0f0")
