@@ -153,7 +153,7 @@ class ChatLogin():
             port=port,
             password=password,
             is_server=is_server,
-            name="Penis mucher 5000"
+            name="Penis mucher 5000" #TREVOR name variable here
         )
 
         # Start chat room
@@ -166,11 +166,13 @@ class ChatLogin():
 class chatRoom():
     def __init__(self, root, peer):
         self.root = root
-        self.peer = peer 
         self.root.title("Secure Chat Room")
         self.root.geometry("600x400")
         # Background color
         self.root.configure(bg="#f0f0f0")
+
+        self.peer = peer 
+        self.peer.on_message = self.handleIncomingMessage
 
         self.messages = []
 
@@ -206,7 +208,9 @@ class chatRoom():
             width=10
         )
         sendButton.pack(side=tk.RIGHT)
-        
+
+    def handleIncomingMessage(self, sender, message):
+        self.root.after(0, self.displayMessage, sender, message)
     # Takes message from messageEntry and transers it to displayMessage
     def sendMessage(self, event=None):
         message = self.messageEntry.get()

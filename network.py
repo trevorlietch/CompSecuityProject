@@ -16,6 +16,7 @@ class Peer:
         self.writer = 0
         self.reader = 0
 
+        self.on_message = 0
 
         if(is_server == True):
             print(f"Starting server listenting on [{self.host}:{self.port}] with password [{self.password}], as name [{self.name}]")
@@ -38,15 +39,22 @@ class Peer:
             return 
 
     async def receive_loop(self, other_name="Peer"):
-        while not Peer.shutdown_event.is_set():  # Use the class variable
+        while not Peer.shutdown_event.is_set():
             try:
                 data = await self.reader.read(1024)
-                if not data:  # Peer disconnected
+                if not data:
                     print(f"{other_name} disconnected")
-                    Peer.shutdown_event.set()  # Signal to stop send loop
+                    Peer.shutdown_event.set()
                     break
                 received = self.unpack(data)
-                print(f"[{received.get('name')}] {received.get('content')}")
+                name = received.get("name")
+                content = received.get("content")
+                print(f"[{name}] {content}")
+
+                # Safely call the GUI update function
+                if self.on_message != 0: 
+                    self.on_message(name, content)
+
             except asyncio.CancelledError:
                 break
 
