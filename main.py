@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import messagebox
+from tkinter import messagebox, scrolledtext
 
 class ChatLogin():
     def __init__(self, root):
@@ -84,6 +84,7 @@ class ChatLogin():
             width=10
         )
         self.enterButton.pack(side=tk.BOTTOM, pady=20)
+        self.enterButton.config(command=self.start_chat)
 
 
         # Initialize fields based on default mode
@@ -97,6 +98,82 @@ class ChatLogin():
         else:
             self.ipFrame.pack_forget()
             #self.enterButton.pack_forget()
+    
+    def start_chat(self):
+        """Validate inputs and start chat room"""
+        # Validate inputs
+        password = self.passwordEntry.get()
+        if not password:
+            messagebox.showerror("Error", "Password is required!")
+            return
+            
+        if self.modeVar.get() == "join":
+            ip_address = self.ipEnter.get()
+            if not ip_address:
+                messagebox.showerror("Error", "IP address is required to join a chat!")
+                return
+
+        # Close login window
+        self.root.destroy()
+        
+        # Start chat room
+        chat_root = tk.Tk()
+        chatRoom(chat_root)  # Create chat room instance
+        chat_root.mainloop()
+
+class chatRoom():
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Secure Chat Room")
+        self.root.geometry("600x400")
+        # Background color
+        self.root.configure(bg="#f0f0f0")
+
+        self.messages = []
+
+        # Chat display
+        self.chatDisplay = scrolledtext.ScrolledText(
+            self.root,
+            state='disabled',
+            width=60,
+            height=20,
+            font=("Arial", 10)
+        )
+        self.chatDisplay.pack(pady=10)
+
+        # Message input frame
+        inputFrame = tk.Frame(self.root)
+        inputFrame.pack(pady=5, fill=tk.X, padx=10)
+
+        self.messageEntry = tk.Entry(
+            inputFrame,
+            width=50,
+            font=("Arial", 12)
+        )
+        self.messageEntry.pack(side=tk.LEFT, expand=True)
+        self.messageEntry.bind("<Return>", self.sendMessage)
+
+        sendButton = tk.Button(
+            inputFrame,
+            text="Send",
+            command=self.sendMessage,
+            width=10
+        )
+        sendButton.pack(side=tk.RIGHT)
+
+    # Takes message from messageEntry and transers it to displayMessage
+    def sendMessage(self, event=None):
+        message = self.messageEntry.get()
+        if message:
+            self.displayMessage("You", message)
+            self.messageEntry.delete(0, tk.END)
+
+    # Displays message to the chatroom
+    def displayMessage(self, sender, message):
+        self.chatDisplay.configure(state='normal')
+        self.chatDisplay.insert(tk.END, f"{sender}: {message}\n")
+        self.chatDisplay.configure(state='disabled')
+        self.chatDisplay.see(tk.END)
 
 if __name__ == "__main__":
     root = tk.Tk()
