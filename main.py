@@ -1,6 +1,10 @@
 import tkinter as tk
 from tkinter import messagebox, scrolledtext
 
+import threading 
+from network import Peer
+import asyncio
+
 class ChatLogin():
     def __init__(self, root):
         self.root = root
@@ -119,7 +123,11 @@ class ChatLogin():
             
     def start_chat(self):
         # Store values from input fields
-        selectedMode = self.modeVar.get()
+
+        if(self.modeVar.get() == "host"):
+            is_server = True 
+        else: is_server = False
+
         password = self.passwordEntry.get()
         ip = self.ipEntry.get()
         port = self.portEntry.get()
@@ -136,30 +144,38 @@ class ChatLogin():
         if not port:
             messagebox.showerror("Error", "Port is required!")
             return
-        
-        # Store variable values
-        self.modeVar = selectedMode
-        self.passwordEntry = password
-        self.enteredIp = ip
-        self.portEntry = port
 
         # Close login window
         self.root.destroy()
-        
+
+        peer = Peer(
+            host=ip,
+            port=port,
+            password=password,
+            is_server=is_server,
+            name="Penis mucher 5000"
+        )
+
         # Start chat room
         chat_root = tk.Tk()
-        chatRoom(chat_root)  # Create chat room instance
-        chat_root.mainloop()
+        chatRoom(chat_root, peer)  # Create chat room instance
+        chat_root.mainloop() #move into chat main loop
+
+        #TREVOR handle chat room ending here? 
 
 class chatRoom():
-    def __init__(self, root):
+    def __init__(self, root, peer):
         self.root = root
+        self.peer = peer 
         self.root.title("Secure Chat Room")
         self.root.geometry("600x400")
         # Background color
         self.root.configure(bg="#f0f0f0")
 
         self.messages = []
+
+        peerThread = threading.Thread(target=self.peer.run, daemon=True)
+        peerThread.start()
 
         # Chat display
         self.chatDisplay = scrolledtext.ScrolledText(
@@ -190,12 +206,20 @@ class chatRoom():
             width=10
         )
         sendButton.pack(side=tk.RIGHT)
-
+        
     # Takes message from messageEntry and transers it to displayMessage
     def sendMessage(self, event=None):
         message = self.messageEntry.get()
         if message:
             self.displayMessage("You", message)
+
+            # Send to peer over the network
+            if self.peer.writer and self.peer.loop:
+                asyncio.run_coroutine_threadsafe(
+                    self.peer.send(message),
+                    self.peer.loop
+                )
+
             self.messageEntry.delete(0, tk.END)
 
     # Displays message to the chatroom
