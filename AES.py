@@ -8,13 +8,20 @@ from Crypto.PublicKey import DSA
 from Crypto.Hash import SHA256
 
 
-class Crypto: 
+class Crypto:
 
     def __init__(self):
         self.public_key = DSA.generate(2048)
         self.private_key = DSA.generate(2048)
 
         self.BLOCK_SIZE = 16
+        base_key = DSA.generate(2048)
+        p = base_key.p
+        q = base_key.q
+        g = base_key.g
+
+        user_private = int.from_bytes(os.urandom(32), 'big') % q
+        user_public = pow(g, alice_x, p)
 
     def derive_key_from_secret(self,secret: str) -> bytes:
         return SHA256.new(str(secret).encode()).digest()
