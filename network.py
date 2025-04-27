@@ -28,9 +28,7 @@ class Peer:
         self.other_host = 0
         self.other_port = 0
 
-        #Crypto
-        self.crypto = Crypto()
-
+        self.crypto = None
 
         if(is_server == True):
             print(f"Starting server listenting on [{self.host}:{self.port}] with password [{self.password}], as name [{self.name}]")
@@ -133,7 +131,13 @@ class Peer:
         #CRYPTO
 
         packet = await self.receive()
-        content = self.process_packet(packet, "key")
+        content = self.process_packet(packet, "key") #base_key
+
+        base.key
+
+        self.crypto = Crypto()
+
+
 
         self.crypto.derive_key_from_secret(content) 
         print(self.crypto.key_shared.decode())

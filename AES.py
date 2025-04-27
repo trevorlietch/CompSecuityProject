@@ -7,70 +7,82 @@ from Crypto.Util.Padding import pad, unpad
 from Crypto.PublicKey import DSA
 from Crypto.Hash import SHA256
 
-BLOCK_SIZE = 16
-KEY_LENGTH = 32
-PBKDF2_ITERATIONS = 100_000
-MESSAGE_LIMIT = 10
+class Crypto():
+    def __init__(self, base_key = None): 
+        self.block_size = 16
 
-def derive_key_from_secret(secret: str) -> bytes:
-    return SHA256.new(str(secret).encode()).digest()
+        if base_key == None:
+            key = DSA.generate(2048) 
+        else: key = base_key
 
-def aes_encrypt(message: str, key: bytes) -> str:
-    iv = os.urandom(BLOCK_SIZE)
-    cipher = AES.new(key, AES.MODE_CBC, iv)
-    padded = pad(message.encode(), BLOCK_SIZE)
-    ciphertext = cipher.encrypt(padded)
-    return base64.b64encode(iv + ciphertext).decode()
+        self.p = key.p
+        self.q = key.q
+        self.g = key.g
 
-def aes_decrypt(encoded: str, key: bytes) -> str:
-    try:
-        combined = base64.b64decode(encoded)
-        iv = combined[:BLOCK_SIZE]
-        ciphertext = combined[BLOCK_SIZE:]
+        self.key_private = int.from_bytes(os.urandom(32), 'big') % self.q
+        self.key_public = pow(self.g, self.key_private, self.p)
+
+    def derive_shared_key(self,other_public):
+        secret = pow(other_public, self.key_private, self.p)
+        return SHA256.new(str(secret).encode()).digest()
+
+    def aes_encrypt(self,message: str, key: bytes) -> str:
+        iv = os.urandom(self.block_size)
         cipher = AES.new(key, AES.MODE_CBC, iv)
-        decrypted = unpad(cipher.decrypt(ciphertext), BLOCK_SIZE)
-        return decrypted.decode()
-    except Exception as e:
-        return f"[Decryption failed: {e}]"
-    
-# Diffie-Hellman key exchange setup
-base_key = DSA.generate(2048)
-p = base_key.p
-q = base_key.q
-g = base_key.g
+        padded = pad(message.encode(), self.block_size)
+        ciphertext = cipher.encrypt(padded)
+        return base64.b64encode(iv + ciphertext).decode()
 
-# Generate Alice's key pair with shared params
-alice_private = int.from_bytes(os.urandom(32), 'big') % q
-alice_public = pow(g, alice_private, p)
+    def aes_decrypt(self,encoded: str, key: bytes) -> str:
+        try:
+            combined = base64.b64decode(encoded)
+            iv = combined[:self.block_size]
+            ciphertext = combined[self.block_size:]
+            cipher = AES.new(key, AES.MODE_CBC, iv)
+            decrypted = unpad(cipher.decrypt(ciphertext), self.block_size)
+            return decrypted.decode()
+        except Exception as e:
+            return f"[Decryption failed: {e}]"
 
-# Generate Bob's key pair with shared params
-bob_private = int.from_bytes(os.urandom(32), 'big') % q
-bob_public = pow(g, bob_private, p)
 
-# Exchange public keys and compute shared secrets
-alice_shared_secret = pow(bob_public, alice_private, p)
-bob_shared_secret = pow(alice_public, bob_private, p)
+if __name__ == "__main__":
+    # Generate base parameters
+    base_key = DSA.generate(2048)
 
-# Derive AES keys
-alice_aes_key = derive_key_from_secret(alice_shared_secret)
-bob_aes_key = derive_key_from_secret(bob_shared_secret)
+    # Initialize Alice and Bob with the same base key
+    alice = Crypto(base_key)
+    bob = Crypto(base_key)
 
-# Verify that Alice's and Bob's derived keys are the same
-def test_shared_key():
-    if alice_aes_key == bob_aes_key:
-        print("[Test] Shared keys match: Success!")
-    else:
-        print("[Test] Shared keys do not match: Failure.")
+    # Derive shared keys
+    alice_shared_key = alice.derive_shared_key(bob.key_public)
+    bob_shared_key = bob.derive_shared_key(alice.key_public)
 
-# Encrypt and decrypt test
-message = "This is a secret message!"
-print("[Original]:", message)
+    # Test shared key equality
+    assert alice_shared_key == bob_shared_key, "Shared keys do not match!"
+    print("[+] Shared key test passed.")
 
-ciphertext = aes_encrypt(message, alice_aes_key)
-print("[Encrypted by Alice]:", ciphertext)
+    # Test encryption/decryption from Alice to Bob
+    message = "Hello Bob, it's Alice!"
+    print(f"[+] Original message: {message}")
 
-decrypted = aes_decrypt(ciphertext, bob_aes_key)
-print("[Decrypted by Bob]:", decrypted)
+    encrypted_msg = alice.aes_encrypt(message, alice_shared_key)
+    print(f"[+] Encrypted message: {encrypted_msg}")
 
-# Run the shared key test
-test_shared_key()
+    decrypted_msg = bob.aes_decrypt(encrypted_msg, bob_shared_key)
+    print(f"[+] Decrypted message (Bob): {decrypted_msg}")
+
+    assert decrypted_msg == message, "Decryption failed! Messages do not match."
+    print("[+] Encryption/Decryption test (Alice -> Bob) passed.")
+
+    # Test encryption/decryption from Bob to Alice
+    reply = "Hi Alice, Bob here!"
+    print(f"[+] Original reply: {reply}")
+
+    encrypted_reply = bob.aes_encrypt(reply, bob_shared_key)
+    print(f"[+] Encrypted reply: {encrypted_reply}")
+
+    decrypted_reply = alice.aes_decrypt(encrypted_reply, alice_shared_key)
+    print(f"[+] Decrypted reply (Alice): {decrypted_reply}")
+
+    assert decrypted_reply == reply, "Decryption failed! Replies do not match."
+    print("[+] Encryption/Decryption test (Bob -> Alice) passed.")
