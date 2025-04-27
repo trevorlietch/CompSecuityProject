@@ -150,22 +150,58 @@ class ChatLogin():
         port = self.portEntry.get()
         name = self.nameEntry.get()
 
+        # # Validate inputs
+        # if not password:
+        #     messagebox.showerror("Error", "Password is required!")
+        #     return
+            
+        # if not ip:
+        #     messagebox.showerror("Error", "IP address is required!")
+        #     return
+        
+        # if not port:
+        #     messagebox.showerror("Error", "Port is required!")
+        #     return
+        
+        # if not name:
+        #     messagebox.showerror("Error", "Name is required!")
+        #     return
         # Validate inputs
         if not password:
             messagebox.showerror("Error", "Password is required!")
             return
-            
+        elif len(password) < 6:
+            messagebox.showerror("Error", "Password must be at least 6 characters long!")
+            return
+
         if not ip:
             messagebox.showerror("Error", "IP address is required!")
             return
-        
+        else:
+            import re
+            ip_pattern = re.compile(r"^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$")
+            if not ip_pattern.match(ip):
+                messagebox.showerror("Error", "IP address must be in format x.x.x.x!")
+                return
+
+            parts = ip.split('.')
+            for part in parts:
+                if not 0 <= int(part) <= 255:
+                    messagebox.showerror("Error", "Each part of IP address must be between 0 and 255!")
+                    return
+
         if not port:
             messagebox.showerror("Error", "Port is required!")
             return
-        
-        if not name:
-            messagebox.showerror("Error", "Name is required!")
-            return
+        else:
+            if not port.isdigit():
+                messagebox.showerror("Error", "Port must be a number!")
+                return
+            port_num = int(port)
+            if not (1 <= port_num <= 65535):
+                messagebox.showerror("Error", "Port must be between 1 and 65535!")
+                return
+
 
         # Close login window
         self.root.destroy()
