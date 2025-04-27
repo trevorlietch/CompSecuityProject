@@ -1,9 +1,15 @@
+#UI
 import tkinter as tk
 from tkinter import messagebox, scrolledtext
 
+#NETWORKING
 import threading 
-from network import Peer
 import asyncio
+from network import Peer
+
+#CRYPTO
+from aes import Crypto
+
 
 class ChatLogin():
     def __init__(self, root):
@@ -161,8 +167,6 @@ class ChatLogin():
         chatRoom(chat_root, peer)  # Create chat room instance
         chat_root.mainloop() #move into chat main loop
 
-        #TREVOR handle chat room ending here? 
-
 class chatRoom():
     def __init__(self, root, peer):
         self.root = root
@@ -171,8 +175,13 @@ class chatRoom():
         # Background color
         self.root.configure(bg="#f0f0f0")
 
+        #network
+
         self.peer = peer 
         self.peer.on_message = self.handleIncomingMessage
+
+        #crpyto 
+        self.crypto = Crypto()
 
         self.messages = []
 

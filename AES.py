@@ -8,29 +8,31 @@ from Crypto.PublicKey import DSA
 from Crypto.Hash import SHA256
 
 
-class Cryto: 
-    BLOCK_SIZE = 16
-    KEY_LENGTH = 32
-    PBKDF2_ITERATIONS = 100_000
-    MESSAGE_LIMIT = 10
+class Crypto: 
 
-    def derive_key_from_secret(secret: str) -> bytes:
+    def __init__(self):
+        self.public_key = DSA.generate(2048)
+        self.private_key = DSA.generate(2048)
+
+        self.BLOCK_SIZE = 16
+
+    def derive_key_from_secret(self,secret: str) -> bytes:
         return SHA256.new(str(secret).encode()).digest()
 
-    def aes_encrypt(message: str, key: bytes) -> str:
-        iv = os.urandom(BLOCK_SIZE)
+    def aes_encrypt(self,message: str, key: bytes) -> str:
+        iv = os.urandom(self.BLOCK_SIZE)
         cipher = AES.new(key, AES.MODE_CBC, iv)
-        padded = pad(message.encode(), BLOCK_SIZE)
+        padded = pad(message.encode(), self.BLOCK_SIZE)
         ciphertext = cipher.encrypt(padded)
         return base64.b64encode(iv + ciphertext).decode()
 
-    def aes_decrypt(encoded: str, key: bytes) -> str:
+    def aes_decrypt(self,encoded: str, key: bytes) -> str:
         try:
             combined = base64.b64decode(encoded)
-            iv = combined[:BLOCK_SIZE]
-            ciphertext = combined[BLOCK_SIZE:]
+            iv = combined[:self.BLOCK_SIZE]
+            ciphertext = combined[self.BLOCK_SIZE:]
             cipher = AES.new(key, AES.MODE_CBC, iv)
-            decrypted = unpad(cipher.decrypt(ciphertext), BLOCK_SIZE)
+            decrypted = unpad(cipher.decrypt(ciphertext), self.BLOCK_SIZE)
             return decrypted.decode()
         except Exception as e:
             return f"[Decryption failed: {e}]"
