@@ -1,13 +1,20 @@
 import tkinter as tk
 from tkinter import messagebox, scrolledtext
 
+import threading 
+from network import Peer
+import asyncio
+
 class ChatLogin():
     def __init__(self, root):
         self.root = root
         self.root.title("Secure Chat Login")
-        self.root.geometry("500x300")
+        self.root.geometry("500x350")
         self.root.resizable(False, False)
         self.root.configure(bg="#f0f0f0")
+
+        # login Variables
+        #self.modeVar = None
 
         # Welcome label
         tk.Label(
@@ -40,6 +47,23 @@ class ChatLogin():
             bg="#f0f0f0",
             command=self.update_fields
         ).pack(side=tk.LEFT, padx=10)
+
+        # Name frame
+        self.nameFrame = tk.Frame(self.root, bg="#f0f0f0")
+        self.nameFrame.pack(pady=10)
+
+        tk.Label(
+            self.nameFrame,
+            text="Name:",
+            font=("Arial", 12),
+            bg="#f0f0f0"
+        ).pack(side=tk.LEFT)
+
+        self.nameEntry = tk.Entry(
+            self.nameFrame, width=25,
+            font=("Arial", 12), bd=2, relief=tk.GROOVE
+        )
+        self.nameEntry.pack(side=tk.LEFT, padx=5)
 
         # Password frame
         self.passwordFrame = tk.Frame(self.root, bg="#f0f0f0")
@@ -77,19 +101,20 @@ class ChatLogin():
 
         # IP frame
         self.ipFrame = tk.Frame(self.root, bg="#f0f0f0")
-        
+        self.ipFrame.pack(pady=10)
+
         tk.Label(
             self.ipFrame,
-            text="Host IP:",
+            text="IP:",
             font=("Arial", 12),
             bg="#f0f0f0"
         ).pack(side=tk.LEFT)
 
-        self.ipEnter = tk.Entry(
+        self.ipEntry = tk.Entry(
             self.ipFrame, width=25,
             font=("Arial", 12), bd=2, relief=tk.GROOVE
         )
-        self.ipEnter.pack(side=tk.LEFT, padx=5)
+        self.ipEntry.pack(side=tk.LEFT, padx=5)
 
         # Enter button
         self.enterButton = tk.Button(
@@ -107,46 +132,71 @@ class ChatLogin():
         # Initialize fields based on default mode
         self.update_fields()
 
+    
     def update_fields(self):
         # Show/hide the IP field based on selected mode
         if self.modeVar.get() == "join":
             self.ipFrame.pack(pady=5)
-            #self.enterButton.pack(side=tk.BOTTOM, pady=20)
-        else:
-            self.ipFrame.pack_forget()
-            #self.enterButton.pack_forget()
-    
+            
     def start_chat(self):
-        """Validate inputs and start chat room"""
-        # Validate inputs
+        # Store values from input fields
+
+        if(self.modeVar.get() == "host"):
+            is_server = True 
+        else: is_server = False
+
         password = self.passwordEntry.get()
+        ip = self.ipEntry.get()
+        port = self.portEntry.get()
+        name = self.nameEntry.get()
+
+        # Validate inputs
         if not password:
             messagebox.showerror("Error", "Password is required!")
             return
             
-        if self.modeVar.get() == "join":
-            ip_address = self.ipEnter.get()
-            if not ip_address:
-                messagebox.showerror("Error", "IP address is required to join a chat!")
-                return
+        if not ip:
+            messagebox.showerror("Error", "IP address is required!")
+            return
+        
+        if not port:
+            messagebox.showerror("Error", "Port is required!")
+            return
+        
+        if not name:
+            messagebox.showerror("Error", "Name is required!")
+            return
 
         # Close login window
         self.root.destroy()
-        
+
+        peer = Peer(
+            host=ip,
+            port=port,
+            password=password,
+            is_server=is_server,
+            name=name 
+        )
+
         # Start chat room
         chat_root = tk.Tk()
-        chatRoom(chat_root)  # Create chat room instance
-        chat_root.mainloop()
+        chatRoom(chat_root, peer)  # Create chat room instance
+        chat_root.mainloop() #move into chat main loop
+
 
 class chatRoom():
-    def __init__(self, root):
+    def __init__(self, root, peer):
         self.root = root
         self.root.title("Secure Chat Room")
         self.root.geometry("600x400")
         # Background color
         self.root.configure(bg="#f0f0f0")
 
-        self.messages = []
+        self.peer = peer 
+        self.peer.on_message = self.handleIncomingMessage
+
+        peerThread = threading.Thread(target=self.peer.run, daemon=True)
+        peerThread.start()
 
         # Chat display
         self.chatDisplay = scrolledtext.ScrolledText(
@@ -178,11 +228,21 @@ class chatRoom():
         )
         sendButton.pack(side=tk.RIGHT)
 
+    def handleIncomingMessage(self, sender, message):
+        self.root.after(0, self.displayMessage, sender, message)
     # Takes message from messageEntry and transers it to displayMessage
     def sendMessage(self, event=None):
         message = self.messageEntry.get()
         if message:
-            self.displayMessage("You", message)
+            self.displayMessage("[You] " + self.peer.name, message)
+
+            # Send to peer over the network
+            if self.peer.writer and self.peer.loop:
+                asyncio.run_coroutine_threadsafe(
+                    self.peer.send(message),
+                    self.peer.loop
+                )
+
             self.messageEntry.delete(0, tk.END)
 
     # Displays message to the chatroom
