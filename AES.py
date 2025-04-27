@@ -23,32 +23,37 @@ class Crypto:
 
         self.key_shared = 0
 
-    def aes_encrypt(self,message: bytes, key: bytes) -> str:
+    def aes_encrypt(self,message: bytes) -> bytes:
         if self.key_shared != 0:
             iv = os.urandom(self.BLOCK_SIZE)
-            cipher = AES.new(key, AES.MODE_CBC, iv)
+            cipher = AES.new(self.key_shared, AES.MODE_CBC, iv)
             padded = pad(message, self.BLOCK_SIZE)
 
             ciphertext = cipher.encrypt(padded)
 
-            return base64.b64encode(iv + ciphertext)
+            return iv + ciphertext
 
-    def aes_decrypt(self,encoded: str, key: bytes) -> str:
+    def aes_decrypt(self, encrypted: bytes) -> bytes:
         if self.key_shared != 0:
             try:
-                combined = base64.b64decode(encoded)
-                iv = combined[:self.BLOCK_SIZE]
-                ciphertext = combined[self.BLOCK_SIZE:]
-                cipher = AES.new(key, AES.MODE_CBC, iv)
+                iv = encrypted[:self.BLOCK_SIZE]
+                ciphertext = encrypted[self.BLOCK_SIZE:]
+                cipher = AES.new(self.key_shared, AES.MODE_CBC, iv)
                 decrypted = unpad(cipher.decrypt(ciphertext), self.BLOCK_SIZE)
-                return decrypted.decode()
+                return decrypted
             except Exception as e:
                 return f"[Decryption failed: {e}]"
         
     def derive_key_from_secret(self, other_public: bytes) -> bytes:
-        secret = pow(other_public, self.key_public, self.p)
+        other_public_int = int.from_bytes(other_public, 'big')
 
-        self.key_shared = SHA256.new(secret).digest()
+        secret_int = pow(other_public_int, self.key_private, self.p)
+        
+        secret_bytes = secret_int.to_bytes((secret_int.bit_length() + 7) // 8, 'big')
+
+        self.key_shared = SHA256.new(secret_bytes).digest()
+
+        return self.key_shared
     
 if __name__ == "__main__":
     base_key = DSA.generate(2048)
