@@ -125,14 +125,14 @@ class Peer:
 
         #NAME HANDLING
 
-        packet = await self.receieve()
+        packet = await self.receive()
         self.process_packet(packet,"name") #void
 
         await self.send(self.name,"name")
 
         #CRYPTO
 
-        packet = await self.receieve()
+        packet = await self.receive()
         content = self.process_packet(packet, "key")
 
         self.crypto.derive_key_from_secret(content) 
