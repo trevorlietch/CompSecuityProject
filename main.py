@@ -215,7 +215,7 @@ class chatRoom():
     def sendMessage(self, event=None):
         message = self.messageEntry.get()
         if message:
-            self.displayMessage("You", message)
+            self.displayMessage("[You] " + self.peer.name, message)
 
             # Send to peer over the network
             if self.peer.writer and self.peer.loop:
