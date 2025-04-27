@@ -95,7 +95,7 @@ class Peer:
     async def receive_loop(self):
         while not Peer.shutdown_event.is_set():
             try:
-                packet = self.receive()
+                packet = await self.receive()
                 self.process_packet(packet)
 
             except asyncio.CancelledError:
@@ -112,41 +112,37 @@ class Peer:
 
         #PASSWORD HANDLING
 
-        packet = self.receive()
+        packet = await self.receive()
         content = self.process_packet(packet,"password")
 
         if content != self.password:
-            self.send("reject","password")
+            await self.send("reject","password")
             print(f"[{other_host}:{other_port}] sent incorrect password: {content} (expected: {self.password}) — closing connection")
             Peer.shutdown_event.set() #TODO HANDLE THIS SHIT
             return
         
-        self.send("accept","password")
+        await self.send("accept","password")
 
         #NAME HANDLING
 
-        packet = self.receieve()
+        packet = await self.receive()
         self.process_packet(packet,"name") #void
 
-        self.send(self.name,"name")
+        await self.send(self.name,"name")
 
         #CRYPTO
 
-        packet = self.receieve()
+        packet = await self.receive()
         content = self.process_packet(packet, "key")
 
-
-
-        self.crypto.derive_key_from_secret(content)
-
-        self.writer.write(self.pack(self.crypto.key_public)) #send back our public key
-        await self.writer.drain()
-
+        self.crypto.derive_key_from_secret(content) 
         print(self.crypto.key_shared.decode())
+
+        await self.send(self.crypto.key_public, "key")
 
         print(f"Client Shared Key: {self.crypto.key_shared.decode()}")
 
-        await self.receive_loop(other_name)
+        await self.receive_loop()
 
     async def start_server(self):
         server = await asyncio.start_server(self.handle_connection, self.host, self.port)
@@ -158,52 +154,44 @@ class Peer:
     async def start_client(self):
         self.reader, self.writer = await asyncio.open_connection(self.host, self.port)
         print(f"Connected to {self.host}:{self.port}")
-        self.writer.write(self.pack(self.password))
-        await self.writer.drain()
 
-        data = await self.reader.read(1024)
-        if not data:
-            print(f"{self.host}:{self.port} disconnected")
-            self.writer.close()
-            await self.writer.wait_closed()
-            return
+        #PASSWORD HANDLING
+        await self.send(self.password,"password")
 
-        packet = self.unpack(data)
-        other_name = packet.get("name")
-        content = packet.get("content")
+        packet = await self.receive()
+        content = self.process_packet(packet,"password")
 
         if content == "reject":
-            print(f"{other_name} rejected the password")
+            print(f"[{self.host}:{self.port}] rejected the password")
             self.writer.close()
             await self.writer.wait_closed()
+
+            #TODO HANDLE THIS
+
             return
 
-        print(f"{other_name} accepted the password")
+        print(f"[{self.host}:{self.port}] accepted the password")
 
-        #sending our public key
+        #NAME HANDLING
 
-        self.writer.write(self.pack(self.crypto.key_public))
-        await self.writer.drain()
+        await self.send(self.name,"name")
 
+        packet = await self.receive()
+        self.process_packet(packet,"name") #void handling
+
+        #CRYPTO
+
+        await self.send(self.crypto.key_public,"key")
         print(f"Sent public key: {self.crypto.key_public}")
 
-        #getting servers public key
-
-        data = await self.reader.read(1024)
-        if not data:
-            print(f"{self.host}:{self.port} disconnected")
-            self.writer.close()
-            await self.writer.wait_closed()
-            return
-        
-        packet = self.unpack(data)
-        content = packet.get("content")
+        packet = await self.receive()
+        content = self.process_packet(packet, "key")
 
         self.crypto.derive_key_from_secret(content) #shared key 
 
-        print(f"Client Shared Key: {self.crypto.key_shared.hex()}")
+        print(f"Client Shared Key: {self.crypto.key_shared}")
 
-        await self.receive_loop(other_name)
+        await self.receive_loop()
 
     #PEER START ROUTINE
     def run(self):
