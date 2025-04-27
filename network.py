@@ -2,6 +2,9 @@ import asyncio
 import json
 import sys
 
+#CRYPTO
+from aes import Crypto
+
 class Peer:
     # Class variable to hold shutdown event, shared across all instances
     shutdown_event = asyncio.Event()
@@ -13,6 +16,9 @@ class Peer:
         self.name = name
         self.is_server = is_server
 
+        #crpyto 
+        self.crypto = Crypto()
+
         self.writer = 0
         self.reader = 0
 
@@ -23,10 +29,13 @@ class Peer:
         else: print(f"Starting client connecting to [{self.host}:{self.port}] with password [{self.password}], as name [{self.name}]")
 
     def pack(self, content):
-        return json.dumps({
+
+        raw = json.dumps({
             "name": self.name,
-            "content": content.strip()
+            "content": content
         }).encode()
+
+        return(raw)
 
     def unpack(self, data):
         return json.loads(data.decode())
@@ -86,11 +95,23 @@ class Peer:
         self.writer.write(self.pack("accept"))
         await self.writer.drain()
 
-        # Using asyncio.gather to run both send_loop and receive_loop concurrently
-        # await asyncio.gather(
-        #     self.receive_loop(reader, other_name),
-        #     self.send_loop(writer)
-        # )
+        data = await self.reader.read(1024) #getting peer public key
+        if not data:
+            print(f"[{other_host}:{other_port}] disconnected")
+            self.writer.close()
+            await self.writer.wait_closed()
+            return
+
+        packet = self.unpack(data)
+        content = packet.get("content") #peer's public key
+
+        self.crypto.derive_key_from_secret(content)
+
+        self.writer.write(self.pack(self.crypto.key_public)) #send back our public key
+
+        print(self.crypto.key_shared.decode())
+
+        print(f"Client Shared Key: {self.crypto.key_shared.decode()}")
 
         await self.receive_loop(other_name)
 
@@ -125,11 +146,28 @@ class Peer:
 
         print(f"{other_name} accepted the password")
 
-        # Using asyncio.gather to run both send_loop and receive_loop concurrently
-        # await asyncio.gather(
-        #     self.receive_loop(reader, other_name),
-        #     self.send_loop(writer)
-        # )
+        #sending our public key
+
+        self.writer.write(self.pack(self.crypto.key_public))
+        await self.writer.drain()
+
+        print(f"Sent public key: {self.crypto.key_public}")
+
+        #getting servers public key
+
+        data = await self.reader.read(1024)
+        if not data:
+            print(f"{self.host}:{self.port} disconnected")
+            self.writer.close()
+            await self.writer.wait_closed()
+            return
+        
+        packet = self.unpack(data)
+        content = packet.get("content")
+
+        self.crypto.derive_key_from_secret(content) #shared key 
+
+        print(f"Client Shared Key: {self.crypto.key_shared.hex()}")
 
         await self.receive_loop(other_name)
 

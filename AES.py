@@ -11,42 +11,45 @@ from Crypto.Hash import SHA256
 class Crypto:
 
     def __init__(self):
-        self.public_key = DSA.generate(2048)
-        self.private_key = DSA.generate(2048)
-
         self.BLOCK_SIZE = 16
         base_key = DSA.generate(2048)
-        p = base_key.p
+
+        self.p = base_key.p
         q = base_key.q
         g = base_key.g
 
-        user_private = int.from_bytes(os.urandom(32), 'big') % q
-        user_public = pow(g, alice_x, p)
+        self.key_private = int.from_bytes(os.urandom(32), 'big') % q
+        self.key_public = pow(g, self.key_private, self.p)
 
-    def derive_key_from_secret(self,secret: str) -> bytes:
-        return SHA256.new(str(secret).encode()).digest()
+        self.key_shared = 0
 
-    def aes_encrypt(self,message: str, key: bytes) -> str:
-        iv = os.urandom(self.BLOCK_SIZE)
-        cipher = AES.new(key, AES.MODE_CBC, iv)
-        padded = pad(message.encode(), self.BLOCK_SIZE)
-        ciphertext = cipher.encrypt(padded)
-        return base64.b64encode(iv + ciphertext).decode()
+    def aes_encrypt(self,message: bytes, key: bytes) -> str:
+        if self.key_shared != 0:
+            iv = os.urandom(self.BLOCK_SIZE)
+            cipher = AES.new(key, AES.MODE_CBC, iv)
+            padded = pad(message, self.BLOCK_SIZE)
+
+            ciphertext = cipher.encrypt(padded)
+
+            return base64.b64encode(iv + ciphertext)
 
     def aes_decrypt(self,encoded: str, key: bytes) -> str:
-        try:
-            combined = base64.b64decode(encoded)
-            iv = combined[:self.BLOCK_SIZE]
-            ciphertext = combined[self.BLOCK_SIZE:]
-            cipher = AES.new(key, AES.MODE_CBC, iv)
-            decrypted = unpad(cipher.decrypt(ciphertext), self.BLOCK_SIZE)
-            return decrypted.decode()
-        except Exception as e:
-            return f"[Decryption failed: {e}]"
+        if self.key_shared != 0:
+            try:
+                combined = base64.b64decode(encoded)
+                iv = combined[:self.BLOCK_SIZE]
+                ciphertext = combined[self.BLOCK_SIZE:]
+                cipher = AES.new(key, AES.MODE_CBC, iv)
+                decrypted = unpad(cipher.decrypt(ciphertext), self.BLOCK_SIZE)
+                return decrypted.decode()
+            except Exception as e:
+                return f"[Decryption failed: {e}]"
         
-    def derive_key_from_secret(secret: int) -> bytes:
-        return SHA256.new(str(secret).encode()).digest()
+    def derive_key_from_secret(self, other_public: bytes) -> bytes:
+        secret = pow(other_public, self.key_public, self.p)
 
+        self.key_shared = SHA256.new(secret).digest()
+    
 if __name__ == "__main__":
     base_key = DSA.generate(2048)
     p = base_key.p

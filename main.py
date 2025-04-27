@@ -180,9 +180,6 @@ class chatRoom():
         self.peer = peer 
         self.peer.on_message = self.handleIncomingMessage
 
-        #crpyto 
-        self.crypto = Crypto()
-
         self.messages = []
 
         peerThread = threading.Thread(target=self.peer.run, daemon=True)
