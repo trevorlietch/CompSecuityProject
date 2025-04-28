@@ -2,6 +2,9 @@ import asyncio
 import json
 import sys
 
+#for base key gen outside of class
+from Crypto.PublicKey import DSA
+
 #CRYPTO
 from aes import Crypto
 
@@ -21,7 +24,7 @@ class Peer:
         self.writer = 0
         self.reader = 0
 
-        self.on_message = 0
+        self.on_message = None
 
         #Other
         self.other_name = "NAME_UNKNOWN_ERROR"
@@ -36,10 +39,18 @@ class Peer:
 
     def pack(self, content, type):
 
-        raw = json.dumps({
-            "type": type,
-            "content": content
-        }).encode()
+        raw = None
+        if(type in ["message","name","password","pub"]):
+            raw = json.dumps({
+                "type": type,
+                "content": content
+            }).encode()
+            print(f"Packed {type} data: {raw}")
+            return raw 
+        
+        elif(type == "pqg_pub"):
+            print(f"Packed {type} data: {content}")
+            return content #in this case this is a custom json packing method that is easier to handle outside this method
 
         return(raw)
 
@@ -53,49 +64,56 @@ class Peer:
         except asyncio.CancelledError:
             return #TODO HANDLE ERROR
         
-    async def receive(self):
-        data = await self.reader.read(1024)
-        if not data:
+    async def receive(self, expected_type = None):
+        data = await self.reader.read(4096)
+
+        if not data: #check for disconnect
             print(f"[{self.other_host}:{self.other_port}] disconnected")
             Peer.shutdown_event.set() #TODO CODE THIS OR SOMETHING
             return 
-        return(self.unpack(data))
-    
-    def process_packet(self,packet,expected_type = None):
+        
+
+        print(f"Received raw data: {data}")
+        packet = self.unpack(data)
         type = packet.get("type")
-        content = packet.get("content")
 
         if (expected_type != None) and (expected_type != type):
-            print(f"Received type [{type}], expected {expected_type}")
+            print(f"Received type [{type}], expected type [{expected_type}]")
             return #TODO HANDLE
         
         if type == "message":
+            content = packet.get("content")
             #handle message
             print(f"Handling message: [{self.other_name}] {content}")
 
             #gui stuffs :) 
-            if self.on_message != 0: 
+            if self.on_message != None: 
                 self.on_message(self.other_name, content)
             else:
                 print("on_message undefined error")
                 #TODO HANDLE THIS ERROR? s
+
         elif type == "name":
+            content = packet.get("content")
             #set name
             self.other_name == content
 
-        # Non-void types, must be handled outside of this function
+        # Non-void types, must be handled outside of this function, so the packet is returned
 
         elif type == "password":
-            return content #handled by respective server and client loops
-        elif type == "key":
-            return content #handled by respective server and client loops
+            content = packet.get("content")
+            return content 
+        elif type == "pqg_pub":
+            return packet
+        elif type == "pub":
+            return packet.get("content")
+
+        return None
 
     async def receive_loop(self):
         while not Peer.shutdown_event.is_set():
             try:
                 packet = await self.receive()
-                self.process_packet(packet)
-
             except asyncio.CancelledError:
                 break
 
@@ -110,8 +128,7 @@ class Peer:
 
         #PASSWORD HANDLING
 
-        packet = await self.receive()
-        content = self.process_packet(packet,"password")
+        content = await self.receive("password")
 
         if content != self.password:
             await self.send("reject","password")
@@ -123,28 +140,33 @@ class Peer:
 
         #NAME HANDLING
 
-        packet = await self.receive()
-        self.process_packet(packet,"name") #void
-
+        await self.receive("name") #naming stuff handled here
         await self.send(self.name,"name")
 
         #CRYPTO
 
-        packet = await self.receive()
-        content = self.process_packet(packet, "key") #base_key
+        new_crypto = Crypto()
 
-        base.key
+        content = json.dumps({
+                "type": "pqg_pub",
+                "p": str(new_crypto.p), #p
+                "q": str(new_crypto.q), #q
+                "g": str(new_crypto.g), #g
+                "pub": str(new_crypto.key_public) #public key
+        }).encode()
 
-        self.crypto = Crypto()
+        await self.send(content,"pqg_pub") #base and server pub sent to client
 
+        other_pub = int(await self.receive("pub"))
 
+        new_crypto.derive_shared_key(other_pub) #derive the shared key from clients pub
 
-        self.crypto.derive_key_from_secret(content) 
-        print(self.crypto.key_shared.decode())
+        self.crypto = new_crypto #establish new cryptography method
 
-        await self.send(self.crypto.key_public, "key")
+        print(f"Server Public key: {self.crypto.key_public}")
+        print(f"Server Shared key: {self.crypto.key_shared}")
 
-        print(f"Client Shared Key: {self.crypto.key_shared.decode()}")
+        #Main chat loop
 
         await self.receive_loop()
 
@@ -161,9 +183,7 @@ class Peer:
 
         #PASSWORD HANDLING
         await self.send(self.password,"password")
-
-        packet = await self.receive()
-        content = self.process_packet(packet,"password")
+        content = await self.receive("password")
 
         if content == "reject":
             print(f"[{self.host}:{self.port}] rejected the password")
@@ -174,26 +194,38 @@ class Peer:
 
             return
 
-        print(f"[{self.host}:{self.port}] accepted the password")
+        print(f"[{self.host}:{self.port}] accepted the password") #moving on from here
 
         #NAME HANDLING
 
         await self.send(self.name,"name")
-
-        packet = await self.receive()
-        self.process_packet(packet,"name") #void handling
+        await self.receive("name")#void handling
 
         #CRYPTO
 
-        await self.send(self.crypto.key_public,"key")
-        print(f"Sent public key: {self.crypto.key_public}")
+        content = await self.receive("pqg_pub")
 
-        packet = await self.receive()
-        content = self.process_packet(packet, "key")
+        pqg = []
+        pqg.append(int(content.get("p")))
+        pqg.append(int(content.get("q")))
+        pqg.append(int(content.get("g")))
 
-        self.crypto.derive_key_from_secret(content) #shared key 
+        other_pub = int(content.get("pub"))
 
-        print(f"Client Shared Key: {self.crypto.key_shared}")
+        new_crypto = Crypto(pqg)
+        new_crypto.derive_shared_key(other_pub)
+
+        my_pub = str(new_crypto.key_public)
+
+        await self.send(my_pub,"pub")
+
+        self.crypto = new_crypto
+
+        print(f"Client Public key: {self.crypto.key_public}")
+        print(f"Client Shared key: {self.crypto.key_shared}")
+        
+
+        #chat loop 
 
         await self.receive_loop()
 

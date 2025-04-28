@@ -140,16 +140,22 @@ class ChatLogin():
 
         # Validate inputs
         if not password:
-            messagebox.showerror("Error", "Password is required!")
-            return
+            # messagebox.showerror("Error", "Password is required!")
+            # return
+
+            password = "1234"
             
         if not ip:
-            messagebox.showerror("Error", "IP address is required!")
-            return
+            # messagebox.showerror("Error", "IP address is required!")
+            # return
+
+            ip = "127.0.0.1"
         
         if not port:
-            messagebox.showerror("Error", "Port is required!")
-            return
+            # messagebox.showerror("Error", "Port is required!")
+            # return
+
+            port = "25565"
 
         # Close login window
         self.root.destroy()

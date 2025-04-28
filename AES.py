@@ -8,23 +8,28 @@ from Crypto.PublicKey import DSA
 from Crypto.Hash import SHA256
 
 class Crypto():
-    def __init__(self, base_key = None): 
+    def __init__(self, pqg = None): 
         self.block_size = 16
 
-        if base_key == None:
-            key = DSA.generate(2048) 
-        else: key = base_key
+        if pqg == None: 
+            base_key = DSA.generate(1024)
 
-        self.p = key.p
-        self.q = key.q
-        self.g = key.g
+            self.p = base_key.p
+            self.q = base_key.q
+            self.g = base_key.g
+        else:
+            self.p = pqg[0]
+            self.q = pqg[1]
+            self.g = pqg[2]
 
         self.key_private = int.from_bytes(os.urandom(32), 'big') % self.q
         self.key_public = pow(self.g, self.key_private, self.p)
 
+        self.key_shared = None
+
     def derive_shared_key(self,other_public):
         secret = pow(other_public, self.key_private, self.p)
-        return SHA256.new(str(secret).encode()).digest()
+        self.key_shared = SHA256.new(str(secret).encode()).digest()
 
     def aes_encrypt(self,message: str, key: bytes) -> str:
         iv = os.urandom(self.block_size)
