@@ -47,46 +47,56 @@ class Peer:
             packet = json.dumps({
                 "type": type,
                 "content": content
-            }).encode()
+            })
         
         elif(type == "pqg_pub"):
             packet = content #in this case this is a custom json packing method that is easier to handle outside this method
 
-        return(packet)
+        self.log(f"Sending packet: {packet}")
+        return(packet.encode())
 
-    def unpack(self, data):
-        return json.loads(data.decode())
+    def unpack(self, packet):
+        return json.loads(packet.decode())
 
     async def send(self, content, type):
         try:
             # Pack the content
-            packed_content = self.pack(content, type)
-            
+            packet = self.pack(content, type)
+
+            if self.crypto: #if we are able to encrypt at this stage
+                packet = self.crypto.aes_encrypt(packet) 
+                self.log(f"Packet encrypted to: {packet}")
+
             # Check if the packed content size is larger than 4096 bytes
-            if len(packed_content) > self.packet_size:
-                self.log(f"Data size of {len(packed_content)} bytes is larger than limit {self.packet_size} bytes")
+            if len(packet) > self.packet_size:
+                self.log(f"Data size of {len(packet)} bytes is larger than limit {self.packet_size} bytes")
                 return #TODO HANDLE ERROR
             
             # Send the packed content
-            self.log(f"Sending data with type: [{type}] and data: {packed_content}")
-            self.writer.write(packed_content)
+            self.writer.write(packet)
             await self.writer.drain()
 
         except asyncio.CancelledError:
             return  # TODO HANDLE ERROR
         
     async def receive(self, expected_type = None):
-        data = await self.reader.read(self.packet_size)
+        packet = await self.reader.read(self.packet_size)
 
-        if not data: #check for disconnect
+        if not packet: #check for disconnect
             self.log(f"[{self.other_host}:{self.other_port}] disconnected")
             Peer.shutdown_event.set() #TODO CODE THIS OR SOMETHING
             return 
-        
-        packet = self.unpack(data)
-        type = packet.get("type")
 
-        self.log(f"Received data with type: [{type}] and data: {data}")
+
+        if self.crypto: #if we are able to encrypt at this stage
+            self.log(f"Decrypting packet from: {packet}")
+            packet = self.crypto.aes_decrypt(packet) 
+        
+        packet = self.unpack(packet)
+
+        self.log(f"Received packet: {packet}")
+        
+        type = packet.get("type")
 
         if (expected_type != None) and (expected_type != type):
             self.log(f"Received type [{type}], expected type [{expected_type}]")
@@ -164,7 +174,7 @@ class Peer:
                 "q": str(new_crypto.q), #q
                 "g": str(new_crypto.g), #g
                 "pub": str(new_crypto.key_public) #public key
-        }).encode()
+        })
 
         await self.send(content,"pqg_pub") #base and server pub sent to client
 

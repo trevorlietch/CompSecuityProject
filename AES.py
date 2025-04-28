@@ -31,23 +31,23 @@ class Crypto():
         secret = pow(other_public, self.key_private, self.p)
         self.key_shared = SHA256.new(str(secret).encode()).digest()
 
-    def aes_encrypt(self,message: str, key: bytes) -> str:
-        iv = os.urandom(self.block_size)
-        cipher = AES.new(key, AES.MODE_CBC, iv)
-        padded = pad(message.encode(), self.block_size)
+    def aes_encrypt(self, message: bytes) -> bytes:
+        iv = os.urandom(self.block_size)  # Generate a random initialization vector (IV)
+        cipher = AES.new(self.key_shared, AES.MODE_CBC, iv)
+        padded = pad(message, self.block_size)  # Pad message to be a multiple of block_size
         ciphertext = cipher.encrypt(padded)
-        return base64.b64encode(iv + ciphertext).decode()
+        # Return the concatenated IV and ciphertext as bytes
+        return iv + ciphertext
 
-    def aes_decrypt(self,encoded: str, key: bytes) -> str:
+    def aes_decrypt(self, encoded: bytes) -> bytes:
         try:
-            combined = base64.b64decode(encoded)
-            iv = combined[:self.block_size]
-            ciphertext = combined[self.block_size:]
-            cipher = AES.new(key, AES.MODE_CBC, iv)
-            decrypted = unpad(cipher.decrypt(ciphertext), self.block_size)
-            return decrypted.decode()
+            iv = encoded[:self.block_size]  # Extract the IV from the first part of the input
+            ciphertext = encoded[self.block_size:]  # The rest is the ciphertext
+            cipher = AES.new(self.key_shared, AES.MODE_CBC, iv)
+            decrypted = unpad(cipher.decrypt(ciphertext), self.block_size)  # Unpad after decryption
+            return decrypted  # Return the decrypted data as bytes
         except Exception as e:
-            return f"[Decryption failed: {e}]"
+            raise ValueError(f"[Decryption failed: {e}]")
 
 
 if __name__ == "__main__":
