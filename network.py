@@ -1,9 +1,7 @@
 import asyncio
 import json
 import sys
-
-#for base key gen outside of class
-from Crypto.PublicKey import DSA
+from datetime import datetime
 
 #CRYPTO
 from aes import Crypto
@@ -19,6 +17,7 @@ class Peer:
         self.password = password
         self.name = name
         self.is_server = is_server
+        self.packet_size = 4096
 
         #Networking 
         self.writer = 0
@@ -33,64 +32,74 @@ class Peer:
 
         self.crypto = None
 
-        if(is_server == True):
-            print(f"Starting server listenting on [{self.host}:{self.port}] with password [{self.password}], as name [{self.name}]")
-        else: print(f"Starting client connecting to [{self.host}:{self.port}] with password [{self.password}], as name [{self.name}]")
+    def log(self, message):
+        current_time = datetime.now().strftime("%H:%M:%S")
+
+        if self.is_server: role = "server" 
+        else: role = "client" 
+
+        print(f"[{role}][{current_time}] {message}")
 
     def pack(self, content, type):
 
-        raw = None
+        packet = None
         if(type in ["message","name","password","pub"]):
-            raw = json.dumps({
+            packet = json.dumps({
                 "type": type,
                 "content": content
             }).encode()
-            print(f"Packed {type} data: {raw}")
-            return raw 
         
         elif(type == "pqg_pub"):
-            print(f"Packed {type} data: {content}")
-            return content #in this case this is a custom json packing method that is easier to handle outside this method
+            packet = content #in this case this is a custom json packing method that is easier to handle outside this method
 
-        return(raw)
+        return(packet)
 
     def unpack(self, data):
         return json.loads(data.decode())
 
     async def send(self, content, type):
-        try: 
-            self.writer.write(self.pack(content,type))
+        try:
+            # Pack the content
+            packed_content = self.pack(content, type)
+            
+            # Check if the packed content size is larger than 4096 bytes
+            if len(packed_content) > self.packet_size:
+                self.log(f"Data size of {len(packed_content)} bytes is larger than limit {self.packet_size} bytes")
+                return #TODO HANDLE ERROR
+            
+            # Send the packed content
+            self.log(f"Sending data with type: [{type}] and data: {packed_content}")
+            self.writer.write(packed_content)
             await self.writer.drain()
+
         except asyncio.CancelledError:
-            return #TODO HANDLE ERROR
+            return  # TODO HANDLE ERROR
         
     async def receive(self, expected_type = None):
-        data = await self.reader.read(4096)
+        data = await self.reader.read(self.packet_size)
 
         if not data: #check for disconnect
-            print(f"[{self.other_host}:{self.other_port}] disconnected")
+            self.log(f"[{self.other_host}:{self.other_port}] disconnected")
             Peer.shutdown_event.set() #TODO CODE THIS OR SOMETHING
             return 
         
-
-        print(f"Received raw data: {data}")
         packet = self.unpack(data)
         type = packet.get("type")
 
+        self.log(f"Received data with type: [{type}] and data: {packet}")
+
         if (expected_type != None) and (expected_type != type):
-            print(f"Received type [{type}], expected type [{expected_type}]")
+            self.log(f"Received type [{type}], expected type [{expected_type}]")
             return #TODO HANDLE
         
         if type == "message":
             content = packet.get("content")
-            #handle message
-            print(f"Handling message: [{self.other_name}] {content}")
 
             #gui stuffs :) 
             if self.on_message != None: 
                 self.on_message(self.other_name, content)
             else:
-                print("on_message undefined error")
+                self.log("on_message undefined error")
                 #TODO HANDLE THIS ERROR? s
 
         elif type == "name":
@@ -119,12 +128,14 @@ class Peer:
 
     #SERVER STARTING ROUTINE
     async def handle_connection(self, reader, writer):
+        self.log(f"Connected to [{self.host}:{self.port}], expecting password [{self.password}]")
+
         self.reader = reader 
         self.writer = writer
 
         other_host, other_port = self.writer.get_extra_info('peername')
 
-        print(f"Connection from [{other_host}:{other_port}]")
+        self.log(f"Connection from [{other_host}:{other_port}]")
 
         #PASSWORD HANDLING
 
@@ -132,7 +143,7 @@ class Peer:
 
         if content != self.password:
             await self.send("reject","password")
-            print(f"[{other_host}:{other_port}] sent incorrect password: {content} (expected: {self.password}) — closing connection")
+            self.log(f"[{other_host}:{other_port}] sent incorrect password: {content} (expected: {self.password}) — closing connection")
             Peer.shutdown_event.set() #TODO HANDLE THIS SHIT
             return
         
@@ -163,8 +174,8 @@ class Peer:
 
         self.crypto = new_crypto #establish new cryptography method
 
-        print(f"Server Public key: {self.crypto.key_public}")
-        print(f"Server Shared key: {self.crypto.key_shared}")
+        self.log(f"Public key: {self.crypto.key_public}")
+        self.log(f"Shared key: {self.crypto.key_shared}")
 
         #Main chat loop
 
@@ -172,21 +183,23 @@ class Peer:
 
     async def start_server(self):
         server = await asyncio.start_server(self.handle_connection, self.host, self.port)
-        print(f"Listening on {self.host}:{self.port}")
+        self.log(f"Listening for connections on [{self.host}:{self.port}], current name is {self.name}")
         async with server:
             await server.serve_forever()
 
     #CLIENT STARTING ROUTINE
     async def start_client(self):
+        self.log(f"Attempting to connect to [{self.host}:{self.port}] with password [{self.password}], as name [{self.name}]")
+
         self.reader, self.writer = await asyncio.open_connection(self.host, self.port)
-        print(f"Connected to {self.host}:{self.port}")
+        self.log(f"Connected to {self.host}:{self.port}")
 
         #PASSWORD HANDLING
         await self.send(self.password,"password")
         content = await self.receive("password")
 
         if content == "reject":
-            print(f"[{self.host}:{self.port}] rejected the password")
+            self.log(f"[{self.host}:{self.port}] rejected the password")
             self.writer.close()
             await self.writer.wait_closed()
 
@@ -194,7 +207,7 @@ class Peer:
 
             return
 
-        print(f"[{self.host}:{self.port}] accepted the password") #moving on from here
+        self.log(f"[{self.host}:{self.port}] accepted the password") #moving on from here
 
         #NAME HANDLING
 
@@ -221,16 +234,19 @@ class Peer:
 
         self.crypto = new_crypto
 
-        print(f"Client Public key: {self.crypto.key_public}")
-        print(f"Client Shared key: {self.crypto.key_shared}")
-        
-
+        self.log(f"Public key: {self.crypto.key_public}")
+        self.log(f"Shared key: {self.crypto.key_shared}")
+    
         #chat loop 
+
+        self.log("Starting Chat loop")
 
         await self.receive_loop()
 
     #PEER START ROUTINE
     def run(self):
+
+        self.log("Starting...")
 
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
