@@ -4,7 +4,7 @@ import sys
 from datetime import datetime
 
 #CRYPTO
-from aes import Crypto
+from crypto import Crypto
 
 class Peer:
     # Class variable to hold shutdown event, shared across all instances

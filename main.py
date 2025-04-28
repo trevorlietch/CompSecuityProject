@@ -8,7 +8,7 @@ import asyncio
 from network import Peer
 
 #CRYPTO
-from aes import Crypto
+from crypto import Crypto
 
 
 class ChatLogin():
