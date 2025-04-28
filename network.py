@@ -86,7 +86,7 @@ class Peer:
         packet = self.unpack(data)
         type = packet.get("type")
 
-        self.log(f"Received data with type: [{type}] and data: {packet}")
+        self.log(f"Received data with type: [{type}] and data: {data}")
 
         if (expected_type != None) and (expected_type != type):
             self.log(f"Received type [{type}], expected type [{expected_type}]")
@@ -105,7 +105,7 @@ class Peer:
         elif type == "name":
             content = packet.get("content")
             #set name
-            self.other_name == content
+            self.other_name = content
 
         # Non-void types, must be handled outside of this function, so the packet is returned
 
