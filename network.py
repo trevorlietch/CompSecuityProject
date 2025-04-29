@@ -26,7 +26,7 @@ class Peer:
         self.on_message = None
         self.receive_task = None
 
-        self.reader_lock = asyncio.Lock()
+        #self.reader_lock = asyncio.Lock()
 
         #Log
         self.log_cutoff = 100
@@ -34,9 +34,9 @@ class Peer:
         #Crypto
         self.crypto = None
 
+        #these are server only crypto stuff
         self.crypto_task = None
-        self.cryto_event = None
-        self.crypto_lock = asyncio.Lock()
+        self.crypto_reset = False
 
         self.interval = 10
 
@@ -96,9 +96,10 @@ class Peer:
             return  # TODO HANDLE ERROR
         
     async def receive(self, expected_type=None):
-
-        async with self.reader_lock: 
-            packet = await self.reader.read(self.packet_size)
+        if self.crypto_reset == True: 
+            self.crypto_routine_server()
+        #async with self.reader_lock: 
+        packet = await self.reader.read(self.packet_size)
 
         if not packet:
             self.log(f"[{self.other_host}:{self.other_port}] Disconnected")
@@ -139,9 +140,8 @@ class Peer:
                 self.log("ERROR: Received pqg_pub packet as the server")
 
         elif type == "pub": 
+            print(f"Inside type == pub, Pub received for sure: {packet.get("content")}")
             return packet.get("content")
-
-        return None
 
     async def receive_loop(self):
         while not Peer.shutdown_event.is_set():
@@ -153,22 +153,13 @@ class Peer:
     async def crypto_loop(self):
         while not Peer.shutdown_event.is_set():
             await asyncio.sleep(self.interval)
-
-            await self.crypto_event.wait()
-
-            await self.crypto_routine_server()
+            self.log("Raising Crypto Flag")
+            self.crypto_flag = True
 
     async def crypto_routine_server(self):
         self.log("Generating new Diffie-Hellman key set", separate = True)
-                # Cancel receive loop
-        if self.receive_task:
-            #self.log("Cancelling receive loop for crypto reset")
-            self.receive_task.cancel()
-            try:
-                await self.receive_task
-            except asyncio.CancelledError:
-                self.log("Receive loop cancelled")
 
+        #self.crypto_event.clear()
         new_crypto = Crypto()
 
         content = json.dumps({
@@ -181,33 +172,24 @@ class Peer:
 
         await self.send(content,"pqg_pub") #base and server pub sent to client
 
-        other_pub = int(await self.receive("pub"))
+        pub_value = await self.receive("pub")
+        self.log(f"Got pub value: {pub_value} of type {type(pub_value)}")
+        other_pub = int(pub_value)
 
         new_crypto.derive_shared_key(other_pub) #derive the shared key from clients pub
 
         self.crypto = new_crypto #establish new cryptography method
 
-        #self.log(f"Public key: {self.crypto.key_public}")
-        #self.log(f"Private key:{self.crypto.key_private}")
-        self.log(f"Shared key: {self.crypto.key_shared}\n")
+        #self.crypto_event = false
+        self.crypto_flag = False
 
-                # Restart the receive loop
-        
-        #self.log("Restarting receive loop after key rotation")
-        if self.receive_task:
-            self.receive_task = asyncio.create_task(self.receive_loop())
+        self.log(f"Shared key: {self.crypto.key_shared}\n")
 
 
     async def crypto_routine_client(self, content):
         self.log("Received new Diffie-Hellman key set", separate = True)
 
-        # Cancel receive loop
-        # if self.receive_task:
-        #     self.receive_task.cancel()
-        #     try:
-        #         await self.receive_task
-        #     except asyncio.CancelledError:
-        #         self.log("Receive loop cancelled")
+        #self.crypto_event.set()
 
         pqg = []
         pqg.append(int(content.get("p")))
@@ -224,6 +206,8 @@ class Peer:
         await self.send(my_pub,"pub")
 
         self.crypto = new_crypto
+
+        #self.crypto_event.clear()
 
         self.log(f"Shared key: {self.crypto.key_shared}\n")
 

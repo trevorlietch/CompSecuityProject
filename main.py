@@ -230,7 +230,7 @@ class chatRoom():
             self.displayMessage("[You] " + self.peer.name, message)
 
             # Send to peer over the network
-            if self.peer.crypto: #if crypto class exists then we are safe to begin sending messages
+            if self.peer.crypto: #if crypto class exists then we are safe to begin sending messages\
                 asyncio.run_coroutine_threadsafe(
                     self.peer.send(message, "message"),
                     self.peer.loop
