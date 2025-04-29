@@ -4,7 +4,7 @@ import sys
 from datetime import datetime
 
 #CRYPTO
-from crypto import Crypto
+from security import Crypto
 
 class Peer:
     # Class variable to hold shutdown event, shared across all instances
@@ -130,11 +130,72 @@ class Peer:
         return None
 
     async def receive_loop(self):
+        # Create the periodic crypto task once at the start
+        if self.is_server:
+            crypto_task = asyncio.create_task(self.crypto_timer())
+
         while not Peer.shutdown_event.is_set():
             try:
                 packet = await self.receive()
             except asyncio.CancelledError:
                 break
+
+        # Ensure the crypto task finishes before exiting
+        await crypto_task
+
+    async def crypto_timer(self):
+        while not Peer.shutdown_event.is_set():
+            await asyncio.sleep(15)  # Wait for 15 seconds before running the routine
+            await self.crypto_routine_server()
+            
+    async def crypto_routine_server(self):
+        self.log("Generating new cryptography key set")
+
+        new_crypto = Crypto()
+
+        content = json.dumps({
+                "type": "pqg_pub",
+                "p": str(new_crypto.p), #p
+                "q": str(new_crypto.q), #q
+                "g": str(new_crypto.g), #g
+                "pub": str(new_crypto.key_public) #public key
+        })
+
+        await self.send(content,"pqg_pub") #base and server pub sent to client
+
+        other_pub = int(await self.receive("pub"))
+
+        new_crypto.derive_shared_key(other_pub) #derive the shared key from clients pub
+
+        self.crypto = new_crypto #establish new cryptography method
+
+        self.log(f"Public key: {self.crypto.key_public}")
+        self.log(f"Private key:{self.crypto.key_private}")
+        self.log(f"Shared key: {self.crypto.key_shared}")
+
+    async def crypto_routine_client(self):
+        content = await self.receive("pqg_pub")
+
+        pqg = []
+        pqg.append(int(content.get("p")))
+        pqg.append(int(content.get("q")))
+        pqg.append(int(content.get("g")))
+
+        other_pub = int(content.get("pub"))
+
+        new_crypto = Crypto(pqg)
+        new_crypto.derive_shared_key(other_pub)
+
+        my_pub = str(new_crypto.key_public)
+
+        await self.send(my_pub,"pub")
+
+        self.crypto = new_crypto
+
+        self.log(f"Public key: {self.crypto.key_public}")
+        self.log(f"Private key:{self.crypto.key_private}")
+        self.log(f"Shared key: {self.crypto.key_shared}")
+
 
     #SERVER STARTING ROUTINE
     async def handle_connection(self, reader, writer):
@@ -165,27 +226,7 @@ class Peer:
         await self.send(self.name,"name")
 
         #CRYPTO
-
-        new_crypto = Crypto()
-
-        content = json.dumps({
-                "type": "pqg_pub",
-                "p": str(new_crypto.p), #p
-                "q": str(new_crypto.q), #q
-                "g": str(new_crypto.g), #g
-                "pub": str(new_crypto.key_public) #public key
-        })
-
-        await self.send(content,"pqg_pub") #base and server pub sent to client
-
-        other_pub = int(await self.receive("pub"))
-
-        new_crypto.derive_shared_key(other_pub) #derive the shared key from clients pub
-
-        self.crypto = new_crypto #establish new cryptography method
-
-        self.log(f"Public key: {self.crypto.key_public}")
-        self.log(f"Shared key: {self.crypto.key_shared}")
+        await self.crypto_routine_server()
 
         #Main chat loop
 
@@ -226,26 +267,7 @@ class Peer:
 
         #CRYPTO
 
-        content = await self.receive("pqg_pub")
-
-        pqg = []
-        pqg.append(int(content.get("p")))
-        pqg.append(int(content.get("q")))
-        pqg.append(int(content.get("g")))
-
-        other_pub = int(content.get("pub"))
-
-        new_crypto = Crypto(pqg)
-        new_crypto.derive_shared_key(other_pub)
-
-        my_pub = str(new_crypto.key_public)
-
-        await self.send(my_pub,"pub")
-
-        self.crypto = new_crypto
-
-        self.log(f"Public key: {self.crypto.key_public}")
-        self.log(f"Shared key: {self.crypto.key_shared}")
+        await self.crypto_routine_client()
     
         #chat loop 
 
