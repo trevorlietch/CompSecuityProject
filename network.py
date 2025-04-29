@@ -123,8 +123,10 @@ class Peer:
             content = packet.get("content")
             return content 
         elif type == "pqg_pub":
-            return packet
-        elif type == "pub":
+            if self.is_server == False:
+                await self.crypto_routine_client(packet)
+            else: self.log("ERROR: Received pqg_pub packet as the server") #TODO handle this error somehow
+        elif type == "pub": 
             return packet.get("content")
 
         return None
@@ -145,9 +147,10 @@ class Peer:
 
     async def crypto_timer(self):
         while not Peer.shutdown_event.is_set():
-            await asyncio.sleep(15)  # Wait for 15 seconds before running the routine
-            await self.crypto_routine_server()
-            
+            await asyncio.sleep(1)  # Wait for 15 seconds before running the routine
+            #await self.crypto_routine_server()
+            self.log("ping!")
+
     async def crypto_routine_server(self):
         self.log("Generating new cryptography key set")
 
@@ -173,8 +176,8 @@ class Peer:
         self.log(f"Private key:{self.crypto.key_private}")
         self.log(f"Shared key: {self.crypto.key_shared}")
 
-    async def crypto_routine_client(self):
-        content = await self.receive("pqg_pub")
+    async def crypto_routine_client(self, content):
+        self.log("Generating new cryptography key set")
 
         pqg = []
         pqg.append(int(content.get("p")))
@@ -226,7 +229,8 @@ class Peer:
         await self.send(self.name,"name")
 
         #CRYPTO
-        await self.crypto_routine_server()
+        
+        await self.crypto_routine_server() #server always initiates this routine and client responds correspondingly 
 
         #Main chat loop
 
@@ -267,7 +271,7 @@ class Peer:
 
         #CRYPTO
 
-        await self.crypto_routine_client()
+        await self.receive("pqg_pub") #Client waits for this packet then initiates crypto routine
     
         #chat loop 
 
