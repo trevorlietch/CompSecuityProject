@@ -15,7 +15,7 @@ class ChatLogin():
     def __init__(self, root):
         self.root = root
         self.root.title("Secure Chat Login")
-        self.root.geometry("500x300")
+        self.root.geometry("500x400")
         self.root.resizable(False, False)
         self.root.configure(bg="#f0f0f0")
 
@@ -53,6 +53,28 @@ class ChatLogin():
             bg="#f0f0f0",
             command=self.update_fields
         ).pack(side=tk.LEFT, padx=10)
+
+       # NAMING FRAME
+
+        self.nameFrame = tk.Frame(self.root, bg="#f0f0f0")
+        self.nameFrame.pack(pady=10)
+
+        tk.Label(
+            self.nameFrame,
+            text="Name:",
+            font=("Arial", 12),
+            bg="#f0f0f0"
+        ).pack(side=tk.LEFT)
+
+        self.nameEntry = tk.Entry(
+            self.nameFrame, width=25,
+            font=("Arial", 12), bd=2, relief=tk.GROOVE
+        )
+        self.nameEntry.pack(side=tk.LEFT, padx=5)
+
+        # Password frame
+        self.passwordFrame = tk.Frame(self.root, bg="#f0f0f0")
+        self.passwordFrame.pack(pady=10)
 
         # Password frame
         self.passwordFrame = tk.Frame(self.root, bg="#f0f0f0")
@@ -137,6 +159,12 @@ class ChatLogin():
         password = self.passwordEntry.get()
         ip = self.ipEntry.get()
         port = self.portEntry.get()
+        name = self.nameEntry.get()
+
+        if not name: 
+            if is_server == True: 
+                name = "Bob"
+            else: name = "Alice"
 
         # Validate inputs
         if not password:
@@ -165,7 +193,7 @@ class ChatLogin():
             port=port,
             password=password,
             is_server=is_server,
-            name="Penis mucher 5000" #TREVOR name variable here
+            name=name #TREVOR name variable here
         )
 
         # Start chat room
