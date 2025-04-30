@@ -269,14 +269,15 @@ class Peer:
         self.log(f"[{self.other_host}:{self.other_port}] sent the correct password: {content}")
         await self.send("accept","password")
 
+        #CRYPTO
+        
+        await self.crypto_routine_server() #server always initiates this routine and client responds correspondingly 
+
         #NAME HANDLING
 
         await self.receive("name") #naming stuff handled here
         await self.send(self.name,"name")
 
-        #CRYPTO
-        
-        await self.crypto_routine_server() #server always initiates this routine and client responds correspondingly 
 
         #Main chat loop
 
@@ -314,14 +315,16 @@ class Peer:
 
         self.log(f"[{self.host}:{self.port}] accepted password: {self.password}") #moving on from here
 
+
+        #CRYPTO
+
+        await self.receive("pqg_pub") #Client waits for this packet then initiates crypto routine
+
         #NAME HANDLING
 
         await self.send(self.name,"name")
         await self.receive("name")#void handling
 
-        #CRYPTO
-
-        await self.receive("pqg_pub") #Client waits for this packet then initiates crypto routine
     
         #chat loop 
 
