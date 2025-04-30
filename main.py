@@ -1,15 +1,21 @@
+#UI
 import tkinter as tk
 from tkinter import messagebox, scrolledtext
 
+#NETWORKING
 import threading 
-from network import Peer
 import asyncio
+from network import Peer
+
+#CRYPTO
+from security import Crypto
+
 
 class ChatLogin():
     def __init__(self, root):
         self.root = root
         self.root.title("Secure Chat Login")
-        self.root.geometry("500x350")
+        self.root.geometry("500x330")
         self.root.resizable(False, False)
         self.root.configure(bg="#f0f0f0")
 
@@ -48,73 +54,70 @@ class ChatLogin():
             command=self.update_fields
         ).pack(side=tk.LEFT, padx=10)
 
-        # Name frame
-        self.nameFrame = tk.Frame(self.root, bg="#f0f0f0")
-        self.nameFrame.pack(pady=10)
+       # Create a container frame
+        self.formFrame = tk.Frame(self.root, bg="#f0f0f0")
+        self.formFrame.pack(pady=10)
 
+        # Name
         tk.Label(
-            self.nameFrame,
+            self.formFrame,
             text="Name:",
             font=("Arial", 12),
-            bg="#f0f0f0"
-        ).pack(side=tk.LEFT)
+            bg="#f0f0f0",
+            anchor='e', width=10
+        ).grid(row=0, column=0, padx=5, pady=5)
 
         self.nameEntry = tk.Entry(
-            self.nameFrame, width=25,
+            self.formFrame, width=25,
             font=("Arial", 12), bd=2, relief=tk.GROOVE
         )
-        self.nameEntry.pack(side=tk.LEFT, padx=5)
+        self.nameEntry.grid(row=0, column=1, padx=5, pady=5)
 
-        # Password frame
-        self.passwordFrame = tk.Frame(self.root, bg="#f0f0f0")
-        self.passwordFrame.pack(pady=10)
-
+        # Password
         tk.Label(
-            self.passwordFrame,
+            self.formFrame,
             text="Password:",
             font=("Arial", 12),
-            bg="#f0f0f0"
-        ).pack(side=tk.LEFT)
+            bg="#f0f0f0",
+            anchor='e', width=10
+        ).grid(row=1, column=0, padx=5, pady=5)
 
         self.passwordEntry = tk.Entry(
-            self.passwordFrame, show="*", width=25,
+            self.formFrame, show="*", width=25,
             font=("Arial", 12), bd=2, relief=tk.GROOVE
         )
-        self.passwordEntry.pack(side=tk.LEFT, padx=5)
+        self.passwordEntry.grid(row=1, column=1, padx=5, pady=5)
 
-        # Port frame
-        self.portFrame = tk.Frame(self.root, bg="#f0f0f0")
-        self.portFrame.pack(pady=10)
-
+        # Port
         tk.Label(
-            self.portFrame,
+            self.formFrame,
             text="Port:",
             font=("Arial", 12),
-            bg="#f0f0f0"
-        ).pack(side=tk.LEFT)
+            bg="#f0f0f0",
+            anchor='e', width=10
+        ).grid(row=2, column=0, padx=5, pady=5)
 
         self.portEntry = tk.Entry(
-            self.portFrame, width=25,
+            self.formFrame, width=25,
             font=("Arial", 12), bd=2, relief=tk.GROOVE
         )
-        self.portEntry.pack(side=tk.LEFT, padx=5)
+        self.portEntry.grid(row=2, column=1, padx=5, pady=5)
 
-        # IP frame
-        self.ipFrame = tk.Frame(self.root, bg="#f0f0f0")
-        self.ipFrame.pack(pady=10)
-
+        # IP
         tk.Label(
-            self.ipFrame,
+            self.formFrame,
             text="IP:",
             font=("Arial", 12),
-            bg="#f0f0f0"
-        ).pack(side=tk.LEFT)
+            bg="#f0f0f0",
+            anchor='e', width=10
+        ).grid(row=3, column=0, padx=5, pady=5)
 
         self.ipEntry = tk.Entry(
-            self.ipFrame, width=25,
+            self.formFrame, width=25,
             font=("Arial", 12), bd=2, relief=tk.GROOVE
         )
-        self.ipEntry.pack(side=tk.LEFT, padx=5)
+        self.ipEntry.grid(row=3, column=1, padx=5, pady=5)
+
 
         # Enter button
         self.enterButton = tk.Button(
@@ -150,58 +153,29 @@ class ChatLogin():
         port = self.portEntry.get()
         name = self.nameEntry.get()
 
-        # # Validate inputs
-        # if not password:
-        #     messagebox.showerror("Error", "Password is required!")
-        #     return
-            
-        # if not ip:
-        #     messagebox.showerror("Error", "IP address is required!")
-        #     return
-        
-        # if not port:
-        #     messagebox.showerror("Error", "Port is required!")
-        #     return
-        
-        # if not name:
-        #     messagebox.showerror("Error", "Name is required!")
-        #     return
+        if not name: 
+            if is_server == True: 
+                name = "Bob"
+            else: name = "Alice"
+
         # Validate inputs
         if not password:
-            messagebox.showerror("Error", "Password is required!")
-            return
-        elif len(password) < 6:
-            messagebox.showerror("Error", "Password must be at least 6 characters long!")
-            return
+            # messagebox.showerror("Error", "Password is required!")
+            # return
 
+            password = "1234"
+            
         if not ip:
-            messagebox.showerror("Error", "IP address is required!")
-            return
-        else:
-            import re
-            ip_pattern = re.compile(r"^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$")
-            if not ip_pattern.match(ip):
-                messagebox.showerror("Error", "IP address must be in format x.x.x.x!")
-                return
+            # messagebox.showerror("Error", "IP address is required!")
+            # return
 
-            parts = ip.split('.')
-            for part in parts:
-                if not 0 <= int(part) <= 255:
-                    messagebox.showerror("Error", "Each part of IP address must be between 0 and 255!")
-                    return
-
+            ip = "127.0.0.1"
+        
         if not port:
-            messagebox.showerror("Error", "Port is required!")
-            return
-        else:
-            if not port.isdigit():
-                messagebox.showerror("Error", "Port must be a number!")
-                return
-            port_num = int(port)
-            if not (1 <= port_num <= 65535):
-                messagebox.showerror("Error", "Port must be between 1 and 65535!")
-                return
+            # messagebox.showerror("Error", "Port is required!")
+            # return
 
+            port = "25565"
 
         # Close login window
         self.root.destroy()
@@ -211,14 +185,13 @@ class ChatLogin():
             port=port,
             password=password,
             is_server=is_server,
-            name=name 
+            name=name #TREVOR name variable here
         )
 
         # Start chat room
         chat_root = tk.Tk()
         chatRoom(chat_root, peer)  # Create chat room instance
         chat_root.mainloop() #move into chat main loop
-
 
 class chatRoom():
     def __init__(self, root, peer):
@@ -228,8 +201,12 @@ class chatRoom():
         # Background color
         self.root.configure(bg="#f0f0f0")
 
+        #network
+
         self.peer = peer 
         self.peer.on_message = self.handleIncomingMessage
+
+        self.messages = []
 
         peerThread = threading.Thread(target=self.peer.run, daemon=True)
         peerThread.start()
@@ -273,9 +250,9 @@ class chatRoom():
             self.displayMessage("[You] " + self.peer.name, message)
 
             # Send to peer over the network
-            if self.peer.writer and self.peer.loop:
+            if self.peer.crypto: #if crypto class exists then we are safe to begin sending messages
                 asyncio.run_coroutine_threadsafe(
-                    self.peer.send(message),
+                    self.peer.send(message, "message"),
                     self.peer.loop
                 )
 
