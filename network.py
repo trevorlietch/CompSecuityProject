@@ -26,6 +26,8 @@ class Peer:
         self.on_message = None
         self.receive_task = None
 
+        self.reader_lock = asyncio.Lock()
+
         #self.reader_lock = asyncio.Lock()
 
         #Log
@@ -33,12 +35,12 @@ class Peer:
 
         #Crypto
         self.crypto = None
+        self.crypto_lock = asyncio.Lock()
 
         #these are server only crypto stuff
-        self.crypto_task = None
-        self.crypto_reset = False
-
         self.interval = 10
+        self.timeout = 1 
+        self.crypto_refresh_task = None
 
         #Other Peer
         self.other_name = "NAME_UNKNOWN_ERROR"
@@ -79,9 +81,10 @@ class Peer:
             # Pack the content
             packet = self.pack(content, type)
 
-            if self.crypto: #if we are able to encrypt at this stage
-                packet = self.crypto.aes_encrypt(packet) 
-                self.log(f"Packet encrypted to: {packet}")
+            async with self.crypto_lock:
+                if self.crypto:
+                    packet = self.crypto.aes_encrypt(packet) 
+                    self.log(f"Packet encrypted to: {packet}")
 
             # Check if the packed content size is larger than 4096 bytes
             if len(packet) > self.packet_size:
@@ -96,21 +99,29 @@ class Peer:
             return  # TODO HANDLE ERROR
         
     async def receive(self, expected_type=None):
-        if self.crypto_reset == True: 
-            self.crypto_routine_server()
         #async with self.reader_lock: 
-        packet = await self.reader.read(self.packet_size)
-
+        try: 
+            packet = await asyncio.wait_for(self.reader.read(self.packet_size), timeout = self.timeout)
+        except asyncio.TimeoutError:
+            return  #just time out, don't log or error
         if not packet:
             self.log(f"[{self.other_host}:{self.other_port}] Disconnected")
             Peer.shutdown_event.set()
             return 
-
+        
         if self.crypto:
             self.log(f"Decrypting packet from: {packet}")
-            packet = self.crypto.aes_decrypt(packet) 
+            try:
+                packet = self.crypto.aes_decrypt(packet)
+            except Exception as e:
+                self.log(f"Decryption failed, most likely older packet: {e}")
+                return
 
-        packet = self.unpack(packet)
+        try: 
+            packet = self.unpack(packet)
+        except Exception as e:
+            self.log(f"Unpacking failed, raw packet: {packet}, error: {e}")
+            return None
 
         self.log(f"Received packet: {packet}")
         
@@ -140,21 +151,25 @@ class Peer:
                 self.log("ERROR: Received pqg_pub packet as the server")
 
         elif type == "pub": 
-            print(f"Inside type == pub, Pub received for sure: {packet.get("content")}")
+            #print(f"Inside type == pub, Pub received for sure: {packet.get("content")}")
             return packet.get("content")
+        return
 
     async def receive_loop(self):
         while not Peer.shutdown_event.is_set():
             try:
-                packet = await self.receive()
+                async with self.reader_lock:
+                    await self.receive()
             except asyncio.CancelledError:
                 break
-
-    async def crypto_loop(self):
+    
+    async def crypto_refresh_loop(self):
         while not Peer.shutdown_event.is_set():
             await asyncio.sleep(self.interval)
-            self.log("Raising Crypto Flag")
-            self.crypto_flag = True
+            self.log("Refreshing cryptographic keys", separate=True)
+
+            async with self.reader_lock:
+                await self.crypto_routine_server()
 
     async def crypto_routine_server(self):
         self.log("Generating new Diffie-Hellman key set", separate = True)
@@ -172,13 +187,17 @@ class Peer:
 
         await self.send(content,"pqg_pub") #base and server pub sent to client
 
-        pub_value = await self.receive("pub")
-        self.log(f"Got pub value: {pub_value} of type {type(pub_value)}")
+        pub_value = None 
+        while pub_value == None:
+            pub_value = await self.receive("pub")
+            self.log(f"Got raw client public key value: {pub_value} of python type {type(pub_value)}")
+
         other_pub = int(pub_value)
 
         new_crypto.derive_shared_key(other_pub) #derive the shared key from clients pub
 
-        self.crypto = new_crypto #establish new cryptography method
+        async with self.crypto_lock:
+            self.crypto = new_crypto
 
         #self.crypto_event = false
         self.crypto_flag = False
@@ -205,7 +224,8 @@ class Peer:
 
         await self.send(my_pub,"pub")
 
-        self.crypto = new_crypto
+        async with self.crypto_lock:
+            self.crypto = new_crypto
 
         #self.crypto_event.clear()
 
@@ -248,11 +268,11 @@ class Peer:
         self.log("Starting receive and crypto loops", True)
 
         self.receive_task = asyncio.create_task(self.receive_loop())
-        self.crypto_task = asyncio.create_task(self.crypto_loop())
-        
+        self.crypto_refresh_task = asyncio.create_task(self.crypto_refresh_loop())
+
         await asyncio.gather(
             self.receive_task,
-            self.crypto_task  # Only if self.is_server is True
+            self.crypto_refresh_task
         )
 
         return
