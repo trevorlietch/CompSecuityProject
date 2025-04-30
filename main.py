@@ -15,12 +15,9 @@ class ChatLogin():
     def __init__(self, root):
         self.root = root
         self.root.title("Secure Chat Login")
-        self.root.geometry("500x400")
+        self.root.geometry("500x330")
         self.root.resizable(False, False)
         self.root.configure(bg="#f0f0f0")
-
-        # login Variables
-        #self.modeVar = None
 
         # Welcome label
         tk.Label(
@@ -54,78 +51,70 @@ class ChatLogin():
             command=self.update_fields
         ).pack(side=tk.LEFT, padx=10)
 
-       # NAMING FRAME
+       # Create a container frame
+        self.formFrame = tk.Frame(self.root, bg="#f0f0f0")
+        self.formFrame.pack(pady=10)
 
-        self.nameFrame = tk.Frame(self.root, bg="#f0f0f0")
-        self.nameFrame.pack(pady=10)
-
+        # Name
         tk.Label(
-            self.nameFrame,
+            self.formFrame,
             text="Name:",
             font=("Arial", 12),
-            bg="#f0f0f0"
-        ).pack(side=tk.LEFT)
+            bg="#f0f0f0",
+            anchor='e', width=10
+        ).grid(row=0, column=0, padx=5, pady=5)
 
         self.nameEntry = tk.Entry(
-            self.nameFrame, width=25,
+            self.formFrame, width=25,
             font=("Arial", 12), bd=2, relief=tk.GROOVE
         )
-        self.nameEntry.pack(side=tk.LEFT, padx=5)
+        self.nameEntry.grid(row=0, column=1, padx=5, pady=5)
 
-        # Password frame
-        self.passwordFrame = tk.Frame(self.root, bg="#f0f0f0")
-        self.passwordFrame.pack(pady=10)
-
-        # Password frame
-        self.passwordFrame = tk.Frame(self.root, bg="#f0f0f0")
-        self.passwordFrame.pack(pady=10)
-
+        # Password
         tk.Label(
-            self.passwordFrame,
+            self.formFrame,
             text="Password:",
             font=("Arial", 12),
-            bg="#f0f0f0"
-        ).pack(side=tk.LEFT)
+            bg="#f0f0f0",
+            anchor='e', width=10
+        ).grid(row=1, column=0, padx=5, pady=5)
 
         self.passwordEntry = tk.Entry(
-            self.passwordFrame, show="*", width=25,
+            self.formFrame, show="*", width=25,
             font=("Arial", 12), bd=2, relief=tk.GROOVE
         )
-        self.passwordEntry.pack(side=tk.LEFT, padx=5)
+        self.passwordEntry.grid(row=1, column=1, padx=5, pady=5)
 
-        # Port frame
-        self.portFrame = tk.Frame(self.root, bg="#f0f0f0")
-        self.portFrame.pack(pady=10)
-
+        # Port
         tk.Label(
-            self.portFrame,
+            self.formFrame,
             text="Port:",
             font=("Arial", 12),
-            bg="#f0f0f0"
-        ).pack(side=tk.LEFT)
+            bg="#f0f0f0",
+            anchor='e', width=10
+        ).grid(row=2, column=0, padx=5, pady=5)
 
         self.portEntry = tk.Entry(
-            self.portFrame, width=25,
+            self.formFrame, width=25,
             font=("Arial", 12), bd=2, relief=tk.GROOVE
         )
-        self.portEntry.pack(side=tk.LEFT, padx=5)
+        self.portEntry.grid(row=2, column=1, padx=5, pady=5)
 
-        # IP frame
-        self.ipFrame = tk.Frame(self.root, bg="#f0f0f0")
-        self.ipFrame.pack(pady=10)
-
+        # IP
         tk.Label(
-            self.ipFrame,
+            self.formFrame,
             text="IP:",
             font=("Arial", 12),
-            bg="#f0f0f0"
-        ).pack(side=tk.LEFT)
+            bg="#f0f0f0",
+            anchor='e', width=10
+        ).grid(row=3, column=0, padx=5, pady=5)
 
         self.ipEntry = tk.Entry(
-            self.ipFrame, width=25,
+            self.formFrame, width=25,
             font=("Arial", 12), bd=2, relief=tk.GROOVE
         )
-        self.ipEntry.pack(side=tk.LEFT, padx=5)
+        self.ipEntry.grid(row=3, column=1, padx=5, pady=5)
+
 
         # Enter button
         self.enterButton = tk.Button(
@@ -147,7 +136,7 @@ class ChatLogin():
     def update_fields(self):
         # Show/hide the IP field based on selected mode
         if self.modeVar.get() == "join":
-            self.ipFrame.pack(pady=5)
+            self.ipEntry.pack(pady=5)
             
     def start_chat(self):
         # Store values from input fields
@@ -166,24 +155,21 @@ class ChatLogin():
                 name = "Bob"
             else: name = "Alice"
 
-        # Validate inputs
+        # Inputs
         if not password:
-            # messagebox.showerror("Error", "Password is required!")
-            # return
 
             password = "1234"
+            print(f"Password defaulted to {password}")
             
         if not ip:
-            # messagebox.showerror("Error", "IP address is required!")
-            # return
 
             ip = "127.0.0.1"
+            print(f"IP defaulted to {ip}")
         
         if not port:
-            # messagebox.showerror("Error", "Port is required!")
-            # return
 
             port = "25565"
+            print(f"Port defaulted to {port}")
 
         # Close login window
         self.root.destroy()
@@ -193,7 +179,7 @@ class ChatLogin():
             port=port,
             password=password,
             is_server=is_server,
-            name=name #TREVOR name variable here
+            name=name
         )
 
         # Start chat room
@@ -209,7 +195,7 @@ class chatRoom():
         # Background color
         self.root.configure(bg="#f0f0f0")
 
-        #network
+        # Network peer to transfer input variables
 
         self.peer = peer 
         self.peer.on_message = self.handleIncomingMessage
@@ -251,18 +237,24 @@ class chatRoom():
 
     def handleIncomingMessage(self, sender, message):
         self.root.after(0, self.displayMessage, sender, message)
+        
     # Takes message from messageEntry and transers it to displayMessage
     def sendMessage(self, event=None):
         message = self.messageEntry.get()
         if message:
-            self.displayMessage("[You] " + self.peer.name, message)
+                # Send to peer over the network
+            self.displayMessage("[You] " + self.peer.name, message) 
 
-            # Send to peer over the network
-            if self.peer.crypto: #if crypto class exists then we are safe to begin sending messages
-                asyncio.run_coroutine_threadsafe(
+            if self.peer.crypto:
+                future = asyncio.run_coroutine_threadsafe(
                     self.peer.send(message, "message"),
                     self.peer.loop
                 )
+
+                result = future.result(timeout = 5)
+
+                if result != None:
+                    self.displayMessage("[You] " + self.peer.name,"[Encrypted] " + str(result))
 
             self.messageEntry.delete(0, tk.END)
 

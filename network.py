@@ -32,6 +32,7 @@ class Peer:
         self.log_cutoff = 100
 
         #Crypto
+
         self.crypto = None
         self.crypto_lock = asyncio.Lock()
 
@@ -80,13 +81,17 @@ class Peer:
         return json.loads(packet.decode())
 
     async def send(self, content, type):
-        try:
+        try:   
+            result = None
+        
             # Pack the content
             packet = self.pack(content, type)
 
             async with self.crypto_lock:
                 if self.crypto:
                     packet = self.crypto.aes_encrypt(packet) 
+                    if type == "message": 
+                        result = packet
                     self.log(f"Packet encrypted to: {packet}")
 
             # Check if the packed content size is larger than 4096 bytes
@@ -96,6 +101,8 @@ class Peer:
             # Send the packed content
             self.writer.write(packet)
             await self.writer.drain()
+
+            return result
 
         except asyncio.CancelledError:
             self.shutdown("asyncio.Cancelled Error")
@@ -112,6 +119,7 @@ class Peer:
         if self.crypto:
             self.log(f"Decrypting packet from: {packet}")
             try:
+                encrypt = packet
                 packet = self.crypto.aes_decrypt(packet)
             except Exception as e:
                 self.log(f"Decryption failed, most likely older packet: {e}")
@@ -132,9 +140,11 @@ class Peer:
             return 
 
         if type == "message":
+            
             content = packet.get("content")
             if self.on_message:
-                self.on_message(self.other_name, content)
+                self.on_message(self.other_name, "[Encrypted] " + str(encrypt))
+                self.on_message(self.other_name, "[Plaintext] " + content)
             else:
                 self.log("on_message undefined error")
 
@@ -157,19 +167,22 @@ class Peer:
 
     async def receive_loop(self):
         try:
-            async with self.reader_lock:
-                await self.receive()
+            while True: 
+                async with self.reader_lock:
+                    await self.receive()
         except asyncio.CancelledError:
             self.shutdown("asyncio.Cancelled Error")
             
     
     async def crypto_refresh_loop(self):
-        while not Peer.shutdown_event.is_set():
+        try: 
             await asyncio.sleep(self.interval)
             self.log("Refreshing cryptographic keys", separate=True)
 
             async with self.reader_lock:
                 await self.crypto_routine_server()
+        except asyncio.CancelledError:
+            self.shutdown("asyncio.Cancelled Error")
 
     async def crypto_routine_server(self):
         self.log("Generating new Diffie-Hellman key set", separate = True)
