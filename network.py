@@ -8,8 +8,6 @@ from security import Crypto
 
 class Peer:
     # Class variable to hold shutdown event, shared across all instances
-    shutdown_event = asyncio.Event()
-
     def __init__(self, host='127.0.0.1', port=65432, password="1234", name="Bob", is_server=True):
         #Parameters
         self.host = host
@@ -47,16 +45,21 @@ class Peer:
         self.other_host = 0
         self.other_port = 0
 
-    def log(self, message, separate = False):
+    def log(self, message, separate = False, trim = True):
         current_time = datetime.now().strftime("%H:%M:%S")
 
         role = "Server" if self.is_server else "Client"
 
-        if len(message) > self.log_cutoff:
+        if (len(message) > self.log_cutoff) and trim:
             message = message[:self.log_cutoff - 3] + "..."
 
         if separate: print(f"\n[{role}][{current_time}] {message}\n")
         else: print(f"[{role}][{current_time}] {message}")
+
+    def shutdown(self, message):
+        self.log(message)
+        self.log("Shutting down")
+        sys.exit()
 
     def pack(self, content, type):
 
@@ -88,15 +91,14 @@ class Peer:
 
             # Check if the packed content size is larger than 4096 bytes
             if len(packet) > self.packet_size:
-                self.log(f"Data size of {len(packet)} bytes is larger than limit {self.packet_size} bytes")
-                return #TODO HANDLE ERROR
+                self.shutdown(f"Data size of {len(packet)} bytes is larger than limit {self.packet_size} bytes")
             
             # Send the packed content
             self.writer.write(packet)
             await self.writer.drain()
 
         except asyncio.CancelledError:
-            return  # TODO HANDLE ERROR
+            self.shutdown("asyncio.Cancelled Error")
         
     async def receive(self, expected_type=None):
         #async with self.reader_lock: 
@@ -105,9 +107,7 @@ class Peer:
         except asyncio.TimeoutError:
             return  #just time out, don't log or error
         if not packet:
-            self.log(f"[{self.other_host}:{self.other_port}] Disconnected")
-            Peer.shutdown_event.set()
-            return 
+            self.shutdown(f"[{self.other_host}:{self.other_port}] Disconnected")
         
         if self.crypto:
             self.log(f"Decrypting packet from: {packet}")
@@ -121,7 +121,7 @@ class Peer:
             packet = self.unpack(packet)
         except Exception as e:
             self.log(f"Unpacking failed, raw packet: {packet}, error: {e}")
-            return None
+            return
 
         self.log(f"Received packet: {packet}")
         
@@ -148,7 +148,7 @@ class Peer:
             if not self.is_server:
                 await self.crypto_routine_client(packet)
             else:
-                self.log("ERROR: Received pqg_pub packet as the server")
+                self.shutdown("ERROR: Received pqg_pub packet as the server")
 
         elif type == "pub": 
             #print(f"Inside type == pub, Pub received for sure: {packet.get("content")}")
@@ -156,12 +156,12 @@ class Peer:
         return
 
     async def receive_loop(self):
-        while not Peer.shutdown_event.is_set():
-            try:
-                async with self.reader_lock:
-                    await self.receive()
-            except asyncio.CancelledError:
-                break
+        try:
+            async with self.reader_lock:
+                await self.receive()
+        except asyncio.CancelledError:
+            self.shutdown("asyncio.Cancelled Error")
+            
     
     async def crypto_refresh_loop(self):
         while not Peer.shutdown_event.is_set():
@@ -248,10 +248,11 @@ class Peer:
 
         if content != self.password:
             await self.send("reject","password")
-            self.log(f"[{self.other_host}:{self.other_port}] sent incorrect password: {content} (expected: {self.password}) — closing connection")
-            Peer.shutdown_event.set() #TODO HANDLE THIS SHIT
+            self.log(f"[{self.other_host}:{self.other_port}] sent an incorrect password [{content}], expected: [{self.password}]")
+            self.log("Closing connection")
             return
         
+        self.log(f"[{self.other_host}:{self.other_port}] sent the correct password: {content}")
         await self.send("accept","password")
 
         #NAME HANDLING
@@ -295,15 +296,9 @@ class Peer:
         content = await self.receive("password")
 
         if content == "reject":
-            self.log(f"[{self.host}:{self.port}] rejected the password")
-            self.writer.close()
-            await self.writer.wait_closed()
+            self.shutdown(f"[{self.host}:{self.port}] rejected password: {self.password}")
 
-            #TODO HANDLE THIS
-
-            return
-
-        self.log(f"[{self.host}:{self.port}] accepted the password") #moving on from here
+        self.log(f"[{self.host}:{self.port}] accepted password: {self.password}") #moving on from here
 
         #NAME HANDLING
 
