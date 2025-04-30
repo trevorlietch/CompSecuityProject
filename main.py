@@ -55,66 +55,77 @@ class ChatLogin():
         self.formFrame = tk.Frame(self.root, bg="#f0f0f0")
         self.formFrame.pack(pady=10)
 
-        # Name
+        # Name Frame
+        self.nameFrame = tk.Frame(self.root, bg="#f0f0f0")
+        self.nameFrame.pack(pady=5)
+
         tk.Label(
-            self.formFrame,
+            self.nameFrame,
             text="Name:",
             font=("Arial", 12),
             bg="#f0f0f0",
-            anchor='e', width=10
-        ).grid(row=0, column=0, padx=5, pady=5)
+            width=10, anchor='w'
+        ).pack(side=tk.LEFT)
 
         self.nameEntry = tk.Entry(
-            self.formFrame, width=25,
+            self.nameFrame, width=25,
             font=("Arial", 12), bd=2, relief=tk.GROOVE
         )
-        self.nameEntry.grid(row=0, column=1, padx=5, pady=5)
+        self.nameEntry.pack(side=tk.LEFT, padx=5)
 
-        # Password
+        # Password Frame
+        self.passwordFrame = tk.Frame(self.root, bg="#f0f0f0")
+        self.passwordFrame.pack(pady=5)
+
         tk.Label(
-            self.formFrame,
+            self.passwordFrame,
             text="Password:",
             font=("Arial", 12),
             bg="#f0f0f0",
-            anchor='e', width=10
-        ).grid(row=1, column=0, padx=5, pady=5)
+            width=10, anchor='w'
+        ).pack(side=tk.LEFT)
 
         self.passwordEntry = tk.Entry(
-            self.formFrame, show="*", width=25,
+            self.passwordFrame, show="*", width=25,
             font=("Arial", 12), bd=2, relief=tk.GROOVE
         )
-        self.passwordEntry.grid(row=1, column=1, padx=5, pady=5)
+        self.passwordEntry.pack(side=tk.LEFT, padx=5)
 
-        # Port
+        # Port Frame
+        self.portFrame = tk.Frame(self.root, bg="#f0f0f0")
+        self.portFrame.pack(pady=5)
+
         tk.Label(
-            self.formFrame,
+            self.portFrame,
             text="Port:",
             font=("Arial", 12),
             bg="#f0f0f0",
-            anchor='e', width=10
-        ).grid(row=2, column=0, padx=5, pady=5)
+            width=10, anchor='w'
+        ).pack(side=tk.LEFT)
 
         self.portEntry = tk.Entry(
-            self.formFrame, width=25,
+            self.portFrame, width=25,
             font=("Arial", 12), bd=2, relief=tk.GROOVE
         )
-        self.portEntry.grid(row=2, column=1, padx=5, pady=5)
+        self.portEntry.pack(side=tk.LEFT, padx=5)
 
-        # IP
+        # IP Frame
+        self.ipFrame = tk.Frame(self.root, bg="#f0f0f0")
+        self.ipFrame.pack(pady=5)
+
         tk.Label(
-            self.formFrame,
+            self.ipFrame,
             text="IP:",
             font=("Arial", 12),
             bg="#f0f0f0",
-            anchor='e', width=10
-        ).grid(row=3, column=0, padx=5, pady=5)
+            width=10, anchor='w'
+        ).pack(side=tk.LEFT)
 
         self.ipEntry = tk.Entry(
-            self.formFrame, width=25,
+            self.ipFrame, width=25,
             font=("Arial", 12), bd=2, relief=tk.GROOVE
         )
-        self.ipEntry.grid(row=3, column=1, padx=5, pady=5)
-
+        self.ipEntry.pack(side=tk.LEFT, padx=5)
 
         # Enter button
         self.enterButton = tk.Button(
@@ -132,11 +143,10 @@ class ChatLogin():
         # Initialize fields based on default mode
         self.update_fields()
 
-    
     def update_fields(self):
         # Show/hide the IP field based on selected mode
         if self.modeVar.get() == "join":
-            self.ipEntry.pack(pady=5)
+            self.ipFrame.pack(pady=5)
             
     def start_chat(self):
         # Store values from input fields
@@ -237,7 +247,7 @@ class chatRoom():
 
     def handleIncomingMessage(self, sender, message):
         self.root.after(0, self.displayMessage, sender, message)
-        
+
     # Takes message from messageEntry and transers it to displayMessage
     def sendMessage(self, event=None):
         message = self.messageEntry.get()
@@ -257,6 +267,7 @@ class chatRoom():
                     self.displayMessage("[You] " + self.peer.name,"[Encrypted] " + str(result))
 
             self.messageEntry.delete(0, tk.END)
+
 
     # Displays message to the chatroom
     def displayMessage(self, sender, message):

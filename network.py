@@ -176,11 +176,12 @@ class Peer:
     
     async def crypto_refresh_loop(self):
         try: 
-            await asyncio.sleep(self.interval)
-            self.log("Refreshing cryptographic keys", separate=True)
+            while True: 
+                await asyncio.sleep(self.interval)
+                self.log("Refreshing cryptographic keys", separate=True)
 
-            async with self.reader_lock:
-                await self.crypto_routine_server()
+                async with self.reader_lock:
+                    await self.crypto_routine_server()
         except asyncio.CancelledError:
             self.shutdown("asyncio.Cancelled Error")
 
