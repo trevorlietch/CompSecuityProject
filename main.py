@@ -19,9 +19,6 @@ class ChatLogin():
         self.root.resizable(False, False)
         self.root.configure(bg="#f0f0f0")
 
-        # login Variables
-        #self.modeVar = None
-
         # Welcome label
         tk.Label(
             self.root,
@@ -158,24 +155,21 @@ class ChatLogin():
                 name = "Bob"
             else: name = "Alice"
 
-        # Validate inputs
+        # Inputs
         if not password:
-            # messagebox.showerror("Error", "Password is required!")
-            # return
 
             password = "1234"
+            print(f"Password defaulted to {password}")
             
         if not ip:
-            # messagebox.showerror("Error", "IP address is required!")
-            # return
 
             ip = "127.0.0.1"
+            print(f"IP defaulted to {ip}")
         
         if not port:
-            # messagebox.showerror("Error", "Port is required!")
-            # return
 
             port = "25565"
+            print(f"Port defaulted to {port}")
 
         # Close login window
         self.root.destroy()
@@ -185,7 +179,7 @@ class ChatLogin():
             port=port,
             password=password,
             is_server=is_server,
-            name=name #TREVOR name variable here
+            name=name
         )
 
         # Start chat room
@@ -201,7 +195,7 @@ class chatRoom():
         # Background color
         self.root.configure(bg="#f0f0f0")
 
-        #network
+        # Network peer to transfer input variables
 
         self.peer = peer 
         self.peer.on_message = self.handleIncomingMessage
@@ -243,6 +237,7 @@ class chatRoom():
 
     def handleIncomingMessage(self, sender, message):
         self.root.after(0, self.displayMessage, sender, message)
+        
     # Takes message from messageEntry and transers it to displayMessage
     def sendMessage(self, event=None):
         message = self.messageEntry.get()
