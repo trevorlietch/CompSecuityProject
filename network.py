@@ -249,14 +249,16 @@ class Peer:
     async def handle_connection(self, reader, writer):
         self.log(f"Connected to [{self.host}:{self.port}], expecting password [{self.password}]")
 
+        #reader and writer applied to instance memory
         self.reader = reader 
         self.writer = writer
 
+        #Get connecting users ip and port. 
         self.other_host, self.other_port = self.writer.get_extra_info('peername')
 
         self.log(f"Connection from [{self.other_host}:{self.other_port}]")
 
-        #PASSWORD HANDLING
+        #Begin password exchange routine
 
         content = await self.receive("password")
 
@@ -269,19 +271,22 @@ class Peer:
         self.log(f"[{self.other_host}:{self.other_port}] sent the correct password: {content}")
         await self.send("accept","password")
 
-        #CRYPTO
-        
+        #Diffie-Hellman exchange
+
         await self.crypto_routine_server() #server always initiates this routine and client responds correspondingly 
 
-        #NAME HANDLING
+        #---- ENCRYPTED BEYOND THIS POINT ----#
+
+        #Names
 
         await self.receive("name") #naming stuff handled here
         await self.send(self.name,"name")
 
-
         #Main chat loop
 
         self.log("Starting receive and crypto loops", True)
+
+        #Begin chat and crypto refresh threads
 
         self.receive_task = asyncio.create_task(self.receive_loop())
         self.crypto_refresh_task = asyncio.create_task(self.crypto_refresh_loop())
@@ -290,7 +295,6 @@ class Peer:
             self.receive_task,
             self.crypto_refresh_task
         )
-
         return
 
     async def start_server(self):
