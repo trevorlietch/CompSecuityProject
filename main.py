@@ -1,6 +1,10 @@
 #UI
 import tkinter as tk
+from tkinter import ttk
+import os
+from PIL import Image, ImageTk
 from tkinter import messagebox, scrolledtext
+import re
 
 #NETWORKING
 import threading 
@@ -15,175 +19,243 @@ class ChatLogin():
     def __init__(self, root):
         self.root = root
         self.root.title("Secure Chat Login")
-        self.root.geometry("500x330")
+        self.root.geometry("500x300")
         self.root.resizable(False, False)
-        self.root.configure(bg="#f0f0f0")
+        # register validation callbacks
+        vcmd_pwd = (self.root.register(self._validate_password), '%P')
+        vcmd_port = (self.root.register(self._validate_port), '%P')
+        vcmd_ip   = (self.root.register(self._validate_ip),   '%P')
+
+        # Canvas & Background
+        self.canvas = tk.Canvas(root, width=500, height=300, highlightthickness=0)
+        self.canvas.pack(fill="both", expand=True)
+
+        try:
+            here = os.path.dirname(__file__)
+            bg_path = os.path.join(here, "bg_login.png")
+            pil_img = Image.open(bg_path).resize((500, 300))
+            self.bg = ImageTk.PhotoImage(pil_img)
+            self.canvas.create_image(0, 0, image=self.bg, anchor="nw")
+        except Exception as e:
+                print("Could not load background:", e)
 
         # Welcome label
-        tk.Label(
-            self.root,
+        self.canvas.create_text(
+            250, 30,
             text="Welcome to Secure Chat",
-            font=("Arial", 16, "bold"),
-            bg="#f0f0f0"
-        ).pack(pady=(20, 10))
+            fill="white",
+            font=("Arial", 14, "bold")
+        )
 
         # Mode Selection (Host/Join)
         self.modeVar = tk.StringVar(value="host")
+        self._mode_circles = {} # calls to _draw_mode() 
 
-        modeFrame = tk.Frame(self.root, bg="#f0f0f0")
-        modeFrame.pack(pady=10)
+        # Draw the buttons with text
+        def _draw_mode(x, y, mode, label):
+            r = 8
+            # fill white if selected, transparent otherwise
+            fill = "white" if self.modeVar.get() == mode else ""
+            circle = self.canvas.create_oval(x-r, y-r, x+r, y+r, outline="white", fill=fill)
+            text = self.canvas.create_text(x + r + 4, y, text=label, fill="white", font=("Arial", 10), anchor="w")
+            self._mode_circles[mode] = (circle, text)
 
-        tk.Radiobutton(
-            modeFrame,
-            text="Host a Chat",
-            variable=self.modeVar,
-            value="host",
-            bg="#f0f0f0",
-            command=self.update_fields
-        ).pack(side=tk.LEFT, padx=10)
-        
-        tk.Radiobutton(
-            modeFrame,
-            text="Join a Chat",
-            variable=self.modeVar,
-            value="join",
-            bg="#f0f0f0",
-            command=self.update_fields
-        ).pack(side=tk.LEFT, padx=10)
+        # Call for Host/Join
+        _draw_mode(180, 55, "host", "Host a Chat")
+        _draw_mode(310, 55, "join", "Join a Chat")
 
-       # Create a container frame
-        self.formFrame = tk.Frame(self.root, bg="#f0f0f0")
-        self.formFrame.pack(pady=10)
+        # Catch any click on the canvas to select mode
+        def _on_canvas_click(event):
+            clicked_mode = None
 
-        # Name Frame
-        self.nameFrame = tk.Frame(self.root, bg="#f0f0f0")
-        self.nameFrame.pack(pady=5)
+            for mode, (circ_id, txt_id) in self._mode_circles.items():
+                # test circle click
+                coords = self.canvas.coords(circ_id)
+                if len(coords) == 4:
+                    x1,y1,x2,y2 = coords
+                    cx,cy=(x1+x2)/2, (y1+y2)/2
+                    r = (x2-x1)/2
+                    if (event.x-cx)**2 + (event.y-cy)**2 <= r**2:
+                        clicked_mode = mode
 
-        tk.Label(
-            self.nameFrame,
-            text="Name:",
-            font=("Arial", 12),
-            bg="#f0f0f0",
-            width=10, anchor='w'
-        ).pack(side=tk.LEFT)
+                # test text click if user doesn't click circle
+                if not clicked_mode:
+                    bbox= self.canvas.bbox(txt_id) # [x1,y1,x2,y2]
+                    if bbox and bbox[0] <= event.x <= bbox[2] and bbox[1] <= event.y <= bbox[3]:
+                        clicked_mode = mode
+                
+                if clicked_mode:
+                    break
+            
+            if clicked_mode:
+                # set the mode, refill circles, and update fields
+                self.modeVar.set(clicked_mode)
+                for m, (c_id, _) in self._mode_circles.items():
+                    self.canvas.itemconfig(c_id, fill="white" if m == clicked_mode else "")
+        self.canvas.bind("<Button-1>", self._on_canvas_click)
 
-        self.nameEntry = tk.Entry(
-            self.nameFrame, width=25,
-            font=("Arial", 12), bd=2, relief=tk.GROOVE
-        )
-        self.nameEntry.pack(side=tk.LEFT, padx=5)
 
-        # Password Frame
-        self.passwordFrame = tk.Frame(self.root, bg="#f0f0f0")
-        self.passwordFrame.pack(pady=5)
+        # Helper to draw entries in a row
+        def make_row(label, y, validate_cmd=None, validate_mode=None):
+            # draw the text and capture its item ID
+            lbl_id = self.canvas.create_text(
+                150, y,
+                text=label,
+                fill="white",
+                font=("Arial", 10),
+                anchor="e"
+            )
+            # build kwargs for validation only if asked
+            entry_kwargs = dict(
+                bg="white", fg="black",
+                relief="flat", highlightthickness=1,
+                highlightbackground="white",
+                font=("Arial",10),
+                validate='key',
+                validatecommand=validate_cmd
+            )
+            if validate_cmd and validate_mode:
+                entry_kwargs.update({
+                    'validate' : validate_mode,
+                    'validatecommand' : validate_cmd
+                })
+            entry = tk.Entry(self.root, **entry_kwargs)
+            win_id = self.canvas.create_window(
+                300, y, window=entry,
+                width=200, height=26
+            )
+            return lbl_id, win_id, entry
 
-        tk.Label(
-            self.passwordFrame,
-            text="Password:",
-            font=("Arial", 12),
-            bg="#f0f0f0",
-            width=10, anchor='w'
-        ).pack(side=tk.LEFT)
+        self.name_lbl, self.name_win, self.nameEntry = make_row("Name:", 100)
+        self.name_lbl, self.password_win, self.passwordEntry = make_row("Password:", 140, validate_cmd=vcmd_pwd, validate_mode='focusout')
+        self.port_lbl, self.port_win, self.portEntry = make_row("Port:", 180, validate_cmd=vcmd_port, validate_mode='key')
+        self.ip_lbl, self.ip_win, self.ipEntry = make_row("IP:", 220, validate_cmd=vcmd_ip, validate_mode='key')
 
-        self.passwordEntry = tk.Entry(
-            self.passwordFrame, show="*", width=25,
-            font=("Arial", 12), bd=2, relief=tk.GROOVE
-        )
-        self.passwordEntry.pack(side=tk.LEFT, padx=5)
-
-        # Port Frame
-        self.portFrame = tk.Frame(self.root, bg="#f0f0f0")
-        self.portFrame.pack(pady=5)
-
-        tk.Label(
-            self.portFrame,
-            text="Port:",
-            font=("Arial", 12),
-            bg="#f0f0f0",
-            width=10, anchor='w'
-        ).pack(side=tk.LEFT)
-
-        self.portEntry = tk.Entry(
-            self.portFrame, width=25,
-            font=("Arial", 12), bd=2, relief=tk.GROOVE
-        )
-        self.portEntry.pack(side=tk.LEFT, padx=5)
-
-        # IP Frame
-        self.ipFrame = tk.Frame(self.root, bg="#f0f0f0")
-        self.ipFrame.pack(pady=5)
-
-        tk.Label(
-            self.ipFrame,
-            text="IP:",
-            font=("Arial", 12),
-            bg="#f0f0f0",
-            width=10, anchor='w'
-        ).pack(side=tk.LEFT)
-
-        self.ipEntry = tk.Entry(
-            self.ipFrame, width=25,
-            font=("Arial", 12), bd=2, relief=tk.GROOVE
-        )
-        self.ipEntry.pack(side=tk.LEFT, padx=5)
-
-        # Enter button
-        self.enterButton = tk.Button(
-            self.root,
+        # Enter button 
+        enter_btn = tk.Button(
+            root,
             text="ENTER",
-            bg="white",
-            fg="green",
-            font=("Arial", 12, "bold"),
-            width=10
+            bg="white", fg="green",
+            relief="flat", 
+            #activebackground="#3e8e41",
+            #activeforeground="white",
+            font=("Arial", 10, "bold"),
+            command=self.start_chat
         )
-        self.enterButton.pack(side=tk.BOTTOM, pady=20)
-        self.enterButton.config(command=self.start_chat)
+        self.canvas.create_window(250, 265, window=enter_btn, width=100, height=30)
 
+    def _on_canvas_click(self, event):
+        # check each circle button's center and radius
+        for mode, (circ,text) in self._mode_circles.items():
+            # check circle hit
+            x1, y1, x2, y2 = self.canvas.coords(circ)
+            cx = (x1 + x2)/2
+            cy = (y1 + y2)/2
+            r  = (x2 - x1)/2
+            inside_circle = (event.x-cx)**2 + (event.y-cy)**2 <= r**2
 
-        # Initialize fields based on default mode
-        self.update_fields()
+            # check text box hit
+            tx1, ty1, tx2, ty2 = self.canvas.bbox(text)
+            inside_text = (tx1 <= event.x <= tx2) and (ty1 <= event.y <= ty2)
 
-    def update_fields(self):
-        # Show/hide the IP field based on selected mode
-        if self.modeVar.get() == "join":
-            self.ipFrame.pack(pady=5)
+            if inside_circle or inside_text:
+                # user clicked inside this circle button
+                self.modeVar.set(mode)
+                # update fill of circles
+                for m, (c, _) in self._mode_circles.items():
+                    self.canvas.itemconfig(c, fill="white" if m==mode else "")
+                break
+
+    def _validate_password(self, new_value: str) -> bool:
+        # only allow at minimum 6 characters
+        if new_value == "":
+            return True
+        if len(new_value) < 6:
+            messagebox.showerror("Invalid Password", "Password must be at least 6 characters long.")
+            return False
+        return True
+
+    def _validate_port(self, new_value: str) -> bool:
+        # only allow digits, and enforce 1<=port<=65535
+        if new_value == "":
+            return True 
+        if not new_value.isdigit():
+            return False
+        val = int(new_value)
+        return 1 <= val <= 65535
+    
+    def _validate_ip(self, new_value: str) -> bool:
+        # only allow digits and dots, up to four octets, each 0-255
+        if new_value == "":
+            return True
+        # only digits and dots
+        if not re.fullmatch(r"[0-9.]*", new_value):
+            return False
+        
+        parts = new_value.split(".")
+        # no more than 4 octets
+        if len(parts) > 4:
+            return False
+        
+        for part in parts:
+            # allow empty string while typing "143."
+            if part == "":
+                continue
+            # no leading zeros unless single '0'
+            if part.startswith("0") and part != "0":
+                return False
+            num = int(part)
+            if num < 0 or num > 255:
+                return False
+        return True
             
     def start_chat(self):
-        # Store values from input fields
+        # read all inputs
+        name = self.nameEntry.get().strip()
+        password = self.passwordEntry.get().strip()
+        port = self.portEntry.get().strip()
+        ip = self.ipEntry.get().strip()
+        mode = self.modeVar.get()
+        is_server = (mode == "host")
 
-        if(self.modeVar.get() == "host"):
-            is_server = True 
-        else: is_server = False
-
-        password = self.passwordEntry.get()
-        ip = self.ipEntry.get()
-        port = self.portEntry.get()
-        name = self.nameEntry.get()
-
-        if not name: 
-            if is_server == True: 
-                name = "Bob"
-            else: name = "Alice"
-
-        # Inputs
+        # Name & Password defaults
+        if not name:
+            name = "Bob" if is_server else "Alice"
+            print(f"Name defaulted to {name}")
         if not password:
-
-            password = "1234"
+            password = "123456"
             print(f"Password defaulted to {password}")
-            
-        if not ip:
 
-            ip = "127.0.0.1"
-            print(f"IP defaulted to {ip}")
-        
-        if not port:
-
+        # Port: must be an integer 1024-65535
+        try:
+            p = int(port)
+            if not (1024 <= p <= 65535):
+                raise ValueError
+        except:
             port = "25565"
             print(f"Port defaulted to {port}")
 
-        # Close login window
+        # IP: must be four octets 0-255
+        def _is_valid_ip(addr):
+            parts = addr.split(".")
+            if len(parts) != 4:
+                return False
+            for part in parts:
+                if not part.isdigit():
+                    return False
+                n = int(part)
+                if not (0 <= n <= 255):
+                    return False
+                # no leading zeros except "0"
+                if part != "0" and part.startswith("0"):
+                    return False
+            return True
+        if not _is_valid_ip(ip):
+            ip = "127.0.0.1"
+            print(f"IP defaulted to {ip}")
+        
+        # Tear down and launch
         self.root.destroy()
-
         peer = Peer(
             host=ip,
             port=port,
@@ -196,7 +268,7 @@ class ChatLogin():
         chat_root = tk.Tk()
         chatRoom(chat_root, peer)  # Create chat room instance
         chat_root.mainloop() #move into chat main loop
-
+        
 class chatRoom():
     def __init__(self, root, peer):
         self.root = root
