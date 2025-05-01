@@ -4,6 +4,7 @@ from tkinter import ttk
 import os
 from PIL import Image, ImageTk
 from tkinter import messagebox, scrolledtext
+import re
 
 #NETWORKING
 import threading 
@@ -19,6 +20,9 @@ class ChatLogin():
         self.root.title("Secure Chat Login")
         self.root.geometry("500x300")
         self.root.resizable(False, False)
+        # register validation callbacks
+        vcmd_port = (self.root.register(self._validate_port), '%P')
+        vcmd_ip   = (self.root.register(self._validate_ip),   '%P')
 
         # Canvas & Background
         self.canvas = tk.Canvas(root, width=500, height=300, highlightthickness=0)
@@ -91,7 +95,7 @@ class ChatLogin():
 
 
         # Helper to draw entries in a row
-        def make_row(label, y):
+        def make_row(label, y, validate_cmd=None):
             # draw the text and capture its item ID
             lbl_id = self.canvas.create_text(
                 150, y,
@@ -102,11 +106,13 @@ class ChatLogin():
             )
             # create the entry and capture its window-item ID
             entry = tk.Entry(
-                root,
+                self.root,
                 bg="white", fg="black",
                 relief="flat", highlightthickness=1,
                 highlightbackground="white",
-                font=("Arial",10)
+                font=("Arial",10),
+                validate='key',
+                validatecommand=validate_cmd
             )
             win_id = self.canvas.create_window(
                 300, y, window=entry,
@@ -116,8 +122,8 @@ class ChatLogin():
 
         self.name_lbl, self.name_win, self.nameEntry = make_row("Name:", 100)
         self.name_lbl, self.password_win, self.passwordEntry = make_row("Password:", 140)
-        self.port_lbl, self.port_win, self.portEntry = make_row("Port:", 180)
-        self.ip_lbl, self.ip_win, self.ipEntry = make_row("IP:", 220)
+        self.port_lbl, self.port_win, self.portEntry = make_row("Port:", 180, validate_cmd=vcmd_port)
+        self.ip_lbl, self.ip_win, self.ipEntry = make_row("IP:", 220, validate_cmd=vcmd_ip)
         # Hide IP entry field unless "Join Chat" is selected
         self.canvas.itemconfigure(self.ip_lbl, state="hidden")
         self.canvas.itemconfigure(self.ip_win, state="hidden")
@@ -169,6 +175,14 @@ class ChatLogin():
                 # show/hide IP 
                 self.update_fields()
                 break
+            
+    def _validate_port(self, new_value: str) -> bool:
+        # only allow empty or all digits
+        return new_value == "" or new_value.isdigit()
+    
+    def _validate_ip(self, new_value: str) -> bool:
+        # only allow empty or digits and dots
+        return bool(re.fullmatch(r"[0-9.]*", new_value))
             
     def start_chat(self):
         name = self.nameEntry.get().strip()
