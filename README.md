@@ -5,7 +5,7 @@ A Python-based secure peer-to-peer chat application with a graphical interface, 
 **Authors:** 
 
 Charlie Street
-Collin Jones
+Colin Jones
 Trevor Lietch
 Wyatt Paradise
 Youla Ali
