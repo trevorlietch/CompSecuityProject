@@ -15,7 +15,7 @@ Youla Ali
 ## Features
 
 - Host or join chat sessions (server-client architecture, while still being completely p2p with no middleman server)
-- Graphical interface using `tkinter`
+- Graphical interface using `tkinter` and `pillow`
 - Asynchronous networking using `asyncio`
 - Cryptography utilities using `pycryptodome`  
 - End-to-end encryption with:
@@ -36,6 +36,7 @@ Youla Ali
   - `asyncio`
   - `tkinter` (usually included with Python)
   - `pycryptodome`
+  - `pillow`
 
 
 
@@ -47,7 +48,8 @@ All files included in this zip must be in the same directory.
 
 1. Be sure you are on Python version 3.8+ with `python --version`
 2. Install the `pycryptodome` package with `pip install pycryptodome`
-3. Run the command `python main.py`, be sure the working directory of your console is set to the folder containing all the included files. 
+3. Do the same for the `pillow` package with `pip install pillow`
+4. Run the command `python main.py`, be sure the working directory of your console is set to the folder containing all the included files. 
 
 You should now be looking at the main menu which will prompt you to host/join, an IP and port to listen on or connect to (if you are host/client respectively), and a name and password. 
 
